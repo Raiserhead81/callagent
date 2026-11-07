@@ -19,7 +19,8 @@ LIVE_MODELL = os.environ.get("CALLAGENT_LIVE_MODELL", "gemini-3.8-live")
 STIMME = os.environ.get("CALLAGENT_STIMME", "Kore")
 KEY_DATEI = os.environ.get("CALLAGENT_GEMINI_KEY", "/opt/gemma-live/gemini-key-paid")
 VAD_STILLE_MS = int(os.environ.get("CALLAGENT_VAD_STILLE_MS", "500"))
-STILLE_ENDE_S = float(os.environ.get("SIP_STILLE_ENDE_S", "30"))
+STILLE_ENDE_S = float(os.environ.get("SIP_STILLE_ENDE_S", "10"))
+SPRACH_PEGEL = int(os.environ.get("CALLAGENT_SPRACH_PEGEL", "300"))  # Ruhe am Telefon ~10, Sprache ~2000+
 
 AUFLEGEN = types.FunctionDeclaration(
     name="auflegen",
@@ -58,6 +59,7 @@ class LiveAnruf:
         self.text_ich, self.text_er = [], []
         self.letzte_aktivitaet = time.monotonic()
         self.pegel_s = self.pegel_n = 0
+        self.abschied_gesagt = False
 
     async def notiz(self, ich, teile):
         text = "".join(teile).strip()
@@ -103,6 +105,11 @@ class LiveAnruf:
                 self.a.offen = False
                 return
             jetzt = time.monotonic()
+            if not self.abschied_gesagt and jetzt - self.a.start > MAX_DAUER_S - 15:
+                self.abschied_gesagt = True
+                log.info("[%s] Zeitlimit naht -> Gemma soll abschliessen", self.a.nummer)
+                await s.send_realtime_input(text="(Hinweis: Die Gespraechszeit ist gleich um. Fasse den Wunsch des "
+                                                 "Anrufers kurz zusammen, verabschiede dich freundlich und rufe dann auflegen auf.)")
             if jetzt - self.a.start > MAX_DAUER_S:
                 self.a.grund = "sip-max-dauer"; await self.a.senden(0x00); self.a.offen = False; return
             if jetzt - self.letzte_aktivitaet > STILLE_ENDE_S:
@@ -110,7 +117,10 @@ class LiveAnruf:
             if typ != 0x10:
                 continue
             sammel += daten
-            self.pegel_s += int(np.abs(np.frombuffer(daten, dtype="<i2")).mean()) if daten else 0
+            lvl = int(np.abs(np.frombuffer(daten, dtype="<i2")).mean()) if daten else 0
+            if lvl > SPRACH_PEGEL:   # Anrufer spricht hoerbar -> Stille-Uhr neu starten
+                self.letzte_aktivitaet = jetzt
+            self.pegel_s += lvl
             self.pegel_n += 1
             if self.pegel_n >= 100:
                 log.info("[%s] Eingang avg %d", self.a.nummer, self.pegel_s // self.pegel_n)

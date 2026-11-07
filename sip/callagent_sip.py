@@ -23,8 +23,8 @@ BACKEND = os.environ.get("CALLAGENT_BACKEND", "http://127.0.0.1:3114")
 MODELL = os.environ.get("VOSK_MODELL", "/opt/callagent/modell/de/vosk-model-small-de-0.15")
 TOKEN_DATEI = os.environ.get("CALLAGENT_TOKEN_DATEI", "/opt/callagent/.app-token")
 ANRUFER_DIR = os.environ.get("SIP_ANRUFER_DIR", "/run/callagent-sip")
-STILLE_ENDE_S = float(os.environ.get("SIP_STILLE_ENDE_S", "45"))
-MAX_DAUER_S = float(os.environ.get("SIP_MAX_DAUER_S", "600"))
+STILLE_ENDE_S = float(os.environ.get("SIP_STILLE_ENDE_S", "10"))
+MAX_DAUER_S = float(os.environ.get("SIP_MAX_DAUER_S", "60"))
 KI_MODUS = os.environ.get("CALLAGENT_KI_MODUS", "live")  # live | klassisch
 
 RATE = 8000
