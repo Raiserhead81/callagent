@@ -1,15 +1,15 @@
 package de.gemivo.callagent;
 
 import android.net.Uri;
-import android.os.Bundle;
 import android.telecom.Call;
 import android.telecom.InCallService;
 import android.telecom.TelecomManager;
 import android.util.Log;
 
 /**
- * InCallService: laeuft als Default-Dialer. Bei unbekannter Nummer
- * nimmt er an und startet den AudioLoop (KI).
+ * InCallService: laeuft als Default-Dialer.
+ * - Unbekannte Nummer + KI an: automatisch annehmen, Gemma telefonierts
+ * - Bekannte Nummer: CallUI zeigen (Annehmen-Button)
  */
 public class InCall extends InCallService {
 
@@ -20,31 +20,54 @@ public class InCall extends InCallService {
         super.onCallAdded(call);
         String nummer = nummer(call);
         boolean bekannt = ContactHelper.istBekannt(this, nummer);
+        Log.i(TAG, "onCallAdded: nummer=" + nummer + " bekannt=" + bekannt
+                + " ki=" + Konfig.kiAktiv(this));
 
-        if (!bekannt && Konfig.kiAktiv(this)) {
-            // KI-Modus: annehmen + AudioLoop starten
-            try {
-                call.answer(android.telecom.VideoProfile.STATE_AUDIO_ONLY);
-            } catch (Exception e) {
-                // Fallback fuer Geraete, die answer() blocken:
-                TelecomManager tm = getSystemService(TelecomManager.class);
-                if (tm != null) {
-                    if (checkSelfPermission(android.Manifest.permission.ANSWER_PHONE_CALLS)
-                            == android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                        tm.acceptRingingCall();
-                    }
-                }
-            }
+        boolean kiUebernimmt = !bekannt && Konfig.kiAktiv(this);
+        CallUI.setzeCall(call, nummer, kiUebernimmt);
+
+        if (kiUebernimmt) {
+            annehmen(call);
             AudioLoop.start(this, nummer);
+        } else {
+            // Bekannter Anruf: eigene Anruf-Oberflaeche zeigen
+            zeigen();
         }
-        // Bekannte Nummern: Standard-Klingeln (Screening hat schon reguliert;
-        // hier nichts tun - kein UI noetig, Standard-Telefon-UI des Systems fehlt
-        // bewusst, wir lassen den Anruf normal laufen, der Nutzer nimmt selbst ab.)
+    }
+
+    private void zeigen() {
+        try {
+            android.content.Intent i = new android.content.Intent(this, CallUI.class);
+            i.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(i);
+        } catch (Exception e) {
+            Log.w(TAG, "CallUI: " + e);
+        }
+    }
+
+    private void annehmen(Call call) {
+        try {
+            call.answer(android.telecom.VideoProfile.STATE_AUDIO_ONLY);
+        } catch (Exception e) {
+            Log.w(TAG, "answer: " + e);
+            try {
+                TelecomManager tm = getSystemService(TelecomManager.class);
+                if (tm != null && checkSelfPermission(
+                        android.Manifest.permission.ANSWER_PHONE_CALLS)
+                        == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    tm.acceptRingingCall();
+                }
+            } catch (Exception e2) {
+                Log.e(TAG, "acceptRingingCall: " + e2);
+            }
+        }
     }
 
     @Override
     public void onCallRemoved(Call call) {
+        Log.i(TAG, "onCallRemoved");
         AudioLoop.stop();
+        CallUI.setzeCall(null, "", false);
         super.onCallRemoved(call);
     }
 

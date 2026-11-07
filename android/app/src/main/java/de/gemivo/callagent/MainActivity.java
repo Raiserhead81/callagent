@@ -42,6 +42,9 @@ public class MainActivity extends Activity {
             Konfig.setzeToken(this, t);
             Toast.makeText(this, "Token gespeichert ✅", Toast.LENGTH_SHORT).show();
         });
+        // Gespeicherten Token ins Feld laden (sichtbar)
+        String tAlt = Konfig.token(this);
+        if (!tAlt.isEmpty()) tokenEingabe.setText(tAlt);
 
         btnDialer.setOnClickListener(v -> frageDialerRolle());
         btnRechte.setOnClickListener(v -> frageRechte());
@@ -65,8 +68,10 @@ public class MainActivity extends Activity {
 
     private void frageDialerRolle() {
         RoleManager rm = getSystemService(RoleManager.class);
-        if (rm.isRoleAvailable(RoleManager.ROLE_DIALER)
-                && !rm.isRoleHeld(RoleManager.ROLE_DIALER)) {
+        boolean verf = rm.isRoleAvailable(RoleManager.ROLE_DIALER);
+        boolean held = rm.isRoleHeld(RoleManager.ROLE_DIALER);
+        android.util.Log.i("CallAgent", "frageDialerRolle: verfuegbar=" + verf + " gehalten=" + held);
+        if (verf && !held) {
             startActivityForResult(rm.createRequestRoleIntent(RoleManager.ROLE_DIALER), 1);
         } else {
             Toast.makeText(this, "CallAgent ist bereits Standard-Telefon-App", Toast.LENGTH_SHORT).show();

@@ -42,6 +42,13 @@
             </intent-filter>
         </service>
 
+        <!-- Anruf-Screen (fuer bekannte Nummern + Kontrolle) -->
+        <activity android:name=".CallUI"
+            android:exported="false"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:launchMode="singleInstance" />
+
         <!-- InCallService: Als Default-Dialer Anrufe steuern + Audio fangen -->
         <service
             android:name=".InCall"
@@ -49,7 +56,7 @@
             android:exported="true">
             <meta-data
                 android:name="android.telecom.IN_CALL_SERVICE_UI"
-                android:value="false" />
+                android:value="true" />
             <intent-filter>
                 <action android:name="android.telecom.InCallService" />
             </intent-filter>
