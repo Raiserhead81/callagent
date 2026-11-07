@@ -102,6 +102,12 @@ public class MainActivity extends Activity {
         }, 2);
     }
 
+    private boolean helferAn() {
+        String an = Settings.Secure.getString(getContentResolver(),
+                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
+        return an != null && an.contains(getPackageName() + "/");
+    }
+
     private void aktualisiereStatus() {
         TelecomManager tm = getSystemService(TelecomManager.class);
         boolean dialer = "de.gemivo.callagent".equals(tm.getDefaultDialerPackage());
@@ -117,8 +123,14 @@ public class MainActivity extends Activity {
         s.append(rechte ? "✅" : "❌").append(" Rechte (Kontakte, Mikrofon)\n");
         s.append(modell ? "✅" : "❌").append(" Vosk-Sprachmodell offline\n");
         s.append(ki ? "✅" : "⏸️").append(" KI-Annahme unbekannter Anrufe\n");
+        boolean helfer = helferAn();
+        s.append(helfer ? "✅" : "❌").append(" Audiohelfer (Bedienungshilfe, nötig damit Gemma den Anrufer hört)\n");
+        if (!helfer) s.append("   → HIER TIPPEN: Bedienungshilfen → CallAgent → einschalten\n");
         s.append("\nBekannte Nummern klingeln normal.\n");
         s.append("Unbekannte Nummern: Gemma nimmt an.");
         statusText.setText(s.toString());
+        statusText.setOnClickListener(v -> {
+            if (!helferAn()) startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
+        });
     }
 }

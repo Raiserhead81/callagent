@@ -92,6 +92,18 @@
             </intent-filter>
         </service>
 
+        <!-- Audiohelfer: Android laesst waehrend eines Anrufs nur Bedienungshilfen-Apps
+             aufs Mikro (sonst liefert AudioRecord exakt 0). Macht sonst nichts. -->
+        <service
+            android:name=".AudioHelfer"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data android:name="android.accessibilityservice" android:resource="@xml/a11y" />
+        </service>
+
         <!-- Test-Leitung: simulierte eingehende Anrufe fuer E2E-Tests (Konto muss per adb aktiviert werden) -->
         <service
             android:name=".TestVerbindung"

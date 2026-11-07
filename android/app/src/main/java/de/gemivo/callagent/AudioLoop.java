@@ -172,7 +172,7 @@ public class AudioLoop extends Service {
                 if (aktiv) return; // diese Quelle traegt Audio
             }
             m.close();
-            if (laeuft) { Log.e(TAG, "Keine Audio-Quelle liefert Ton (Aufnahme im Anruf gesperrt?)"); beenden("kein-audio"); }
+            if (laeuft) { Log.e(TAG, "Keine Audio-Quelle liefert Ton - Android sperrt das Mikro im Anruf (Audiohelfer an? " + AudioHelfer.aktiv + ")"); beenden("kein-audio"); }
         } catch (Exception e) {
             Log.e(TAG, "zuhoeren: " + e);
             beenden("fehler-zuhoeren");
