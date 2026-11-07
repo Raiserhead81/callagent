@@ -245,6 +245,15 @@ function telegramMelden(text) {
   rq.end(data);
 }
 
+// Prompt fuer Gemini Live (Sprache rein/raus). "Kai" geschrieben, damit die Stimme es deutsch ausspricht.
+function livePrompt(begr) {
+  return ausspracheText(SYSTEM_PROMPT
+    .replace(/Haengt an jede Abschluss-Antwort "GEMMA_ENDE" an \(danach wird aufgelegt\)\./,
+      'Nach deiner Abschluss-Antwort rufst du das Werkzeug "auflegen" auf (danach wird aufgelegt). Sonst nie.')
+    .replace(/Deine Antwort wird vorgelesen:[^`]*$/, 'Du sprichst am Telefon: kurz, natuerlich, in normalem Gespraechstempo.')) +
+    '\nDu bist am Telefon. Ganz am Anfang sagst du genau diese Begruessung: "' + ausspracheText(begr) + '"';
+}
+
 function begruessungsText(nummer) {
   return 'Schönen guten Tag, hier spricht Gemma, die Assistentin von Kay. ' +
     'Kay ist gerade leider nicht erreichbar - kann ich etwas für Sie aufnehmen?';
@@ -298,6 +307,11 @@ const server = http.createServer((req, res) => {
       SESSIONS.set(id, s);
       protokollNeu(s.nummer, dbId => { s.dbId = dbId; });
       const begr = begruessungsText(s.nummer);
+      if (body.live) {
+        // Live-Modus (Gemini Live in der SIP-Bruecke): kein TTS hier, Bruecke spricht selbst
+        // und meldet das Transkript per /api/notiz
+        return json(res, 200, { ok: true, session: id, begruessung_text: begr, prompt: livePrompt(begr) });
+      }
       geminiTTS(begr, (e, b64) => {
         if (e) { console.log('[tts] Start fehlgeschlagen', e.message); return json(res, 500, { ok: false, fehler: 'tts ' + e.message }); }
         s.historie.push({ ich: true, text: begr });
@@ -305,6 +319,18 @@ const server = http.createServer((req, res) => {
         merke();
         json(res, 200, { ok: true, session: id, begruessung_text: begr, audio_b64: b64 });
       });
+    });
+  } else if (u.pathname === '/api/notiz' && req.method === 'POST') {
+    leseBody(req, body => {
+      const s = SESSIONS.get(body.session);
+      if (!s) return json(res, 404, { ok: false, fehler: 'session' });
+      // Live-Transkript: "Kai" war nur fuer die Aussprache -> im Protokoll wieder "Kay"
+      const text = String(body.text || '').trim().replace(/\bKai(s?)\b/g, 'Kay$1');
+      if (!text) return json(res, 200, { ok: true });
+      s.letzteAktiv = Date.now();
+      s.historie.push({ ich: !!body.ich, text });
+      const merke = () => s.dbId ? protokollAppend(s.dbId, !!body.ich, text, () => json(res, 200, { ok: true })) : setTimeout(merke, 200);
+      merke();
     });
   } else if (u.pathname === '/api/turn' && req.method === 'POST') {
     leseBody(req, body => {
@@ -380,5 +406,5 @@ if (require.main === module) {
 }
 
 // Unit-Test-Exporte
-module.exports = { wavHeader, esc, begruessungsText, ausspracheText, anrufMeldung, safeRead, denglisch, wiederholt, zusammenfassung };
+module.exports = { wavHeader, esc, begruessungsText, ausspracheText, anrufMeldung, livePrompt, safeRead, denglisch, wiederholt, zusammenfassung };
 

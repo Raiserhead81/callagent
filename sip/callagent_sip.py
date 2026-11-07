@@ -25,6 +25,7 @@ TOKEN_DATEI = os.environ.get("CALLAGENT_TOKEN_DATEI", "/opt/callagent/.app-token
 ANRUFER_DIR = os.environ.get("SIP_ANRUFER_DIR", "/run/callagent-sip")
 STILLE_ENDE_S = float(os.environ.get("SIP_STILLE_ENDE_S", "45"))
 MAX_DAUER_S = float(os.environ.get("SIP_MAX_DAUER_S", "600"))
+KI_MODUS = os.environ.get("CALLAGENT_KI_MODUS", "live")  # live | klassisch
 
 RATE = 8000
 STT_RATE = 16000  # Vosk-Modell ist auf 16 kHz trainiert
@@ -161,6 +162,22 @@ class Anruf:
             except OSError:
                 pass
             log.info("Anruf %s von %s", uid, self.nummer)
+        if KI_MODUS == "live":
+            r = await asyncio.to_thread(backend, "/api/start", {"nummer": self.nummer, "live": True})
+            if r.get("ok"):
+                self.session = r["session"]
+                live = None
+                try:
+                    from callagent_live import LiveAnruf
+                    live = LiveAnruf(self)
+                    await live.lauf(r["prompt"])
+                    return
+                except Exception as e:
+                    if not self.offen or (live and (live.puffer or live.text_ich)):
+                        raise  # Gespraech lief schon -> kein Neustart mitten im Anruf
+                    log.exception("[%s] Live fehlgeschlagen, alter Weg: %s", self.nummer, e)
+                    await asyncio.to_thread(backend, "/api/end", {"session": self.session, "grund": "live-fehler"}, 60)
+                    self.session = None
         r = await asyncio.to_thread(backend, "/api/start", {"nummer": self.nummer})
         if not r.get("ok"):
             log.error("[%s] start-Fehler: %s", self.nummer, r.get("fehler"))
