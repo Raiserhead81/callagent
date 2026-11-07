@@ -1,0 +1,14 @@
+✔ wavHeader: korrekter RIFF-Header fuer 1000 Bytes 24kHz mono 16bit (0.7585ms)
+✔ esc: Hochkommata werden verdoppelt, NULL fuer fehlende Werte (0.136041ms)
+✔ begruessungstext: nennt Gemma und Kay, bittet um Anliegen (0.216417ms)
+✔ denglisch: erkennt englische Woerter, laesst sauberes Deutsch durch (0.513834ms)
+✔ wiederholt: erkennt Schleifen-Zusammenfassungen (0.218ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 7.559708
+exit=0

@@ -46,7 +46,8 @@ Typische Gespraechsfuehrung:
 Antworte AUSSCHLIESSLICH als Gemma auf Deutsch, kein Markdown, keine Regieanweisungen.
 Sprache: sauberes, korrekt geschriebenes Hochdeutsch. KEINE englischen Woerter oder Denglisch (nicht "connecten", "leaven", "callen", "patience").
 Sag nur, was stimmt: Du hast Kay noch NICHT informiert und planst keine Termine - du nimmst die Nachricht auf, Kay bekommt sie nach dem Gespraech.
-Siezen, ausser der Anrufer duzt dich. Deine Antwort wird vorgelesen: keine Abkuerzungen, keine Aufzaehlungen, keine Sonderzeichen.`;
+Siezen, ausser der Anrufer duzt dich. Hoechstens zwei kurze Saetze, keine Zeilenumbrueche, keine Listen wie 'Dringlichkeit: normal'.
+Was der Anrufer sagt, kommt aus einer automatischen Spracherkennung und kann falsch erkannte Woerter enthalten: Wirkt ein Name oder Wort seltsam oder anstoessig, wiederhole es NICHT, sondern frag freundlich nach (z.B. 'Wie war der Firmenname noch mal?'). Deine Antwort wird vorgelesen: keine Abkuerzungen, keine Aufzaehlungen, keine Sonderzeichen.`;
 
 // ---------- SQLite (via sqlite3-cli, keine npm-Abhaengigkeit) ----------
 function dbInit() {
@@ -101,6 +102,7 @@ function miniChat(historie, cb) {
         const j = JSON.parse(Buffer.concat(chunks).toString());
         const t = (j.choices[0].message.content || '').trim();
         if (t && denglisch(t)) return cb(new Error('mini denglisch: ' + denglisch(t)));
+        if (t && (t.length > 320 || /\n/.test(t.trim()))) return cb(new Error('mini zu lang (' + t.length + ')'));
         if (t) return cb(null, t);
         cb(new Error('mini leer'));
       } catch (e) { cb(e); }
@@ -112,7 +114,9 @@ function miniChat(historie, cb) {
 }
 
 // Englische Woerter/Denglisch in Antworten erkennen (Mini-Gemma rutscht oft ins Englische)
-const ENGLISCH = /\b(the|and|you|your|please|patience|sorry|okay then|connect\w*|leave\w*|call(en|ing|ed)?|meeting|feedback|appointment|message|thanks|thank)\b/i;
+const ENGLISCH = /\b(the|and|you|your|please|patience|sorry|okay then|connect\w*|leave\w*|call(en|ing|ed)?|meeting|feedback|appointment|message|thanks|thank|request\w*|urgent|callback|note[ds]?|anything|else)\b/i;
+// Endlosschleifen erkennen: derselbe Satz (>30 Zeichen) kommt mehrfach vor
+function wiederholt(t) { const z = (t || '').split(/(?<=[.!?])\s+/).map(x => x.trim()).filter(x => x.length > 30); return new Set(z).size < z.length; }
 function denglisch(t) { const m = (t || '').match(ENGLISCH); return m ? m[0] : ''; }
 
 // LLM: erst Mini-GPU, Fallback Gemini-Text (idempotent)
@@ -176,6 +180,8 @@ function wavHeader(datenLen, rate, kanal, bits) {
 // Freie LLM-Frage ohne Telefon-Persona (erst Mini, dann Gemini)
 function llmFrage(frage, cb) {
   llmFrageMini(frage, (e, t) => {
+    if (!e && t && wiederholt(t)) e = new Error('mini wiederholt sich');
+    if (!e && t && denglisch(t)) e = new Error('mini denglisch');
     if (!e && t) return cb(null, t);
     console.log('[llmfrage] Mini weg (' + (e ? e.message : '?') + ') -> Gemini');
     geminiText([{ ich: false, text: frage }], cb, 'Du fasst Telefonate sachlich auf Deutsch zusammen.');
@@ -231,7 +237,9 @@ function zusammenfassung(dbId, cb) {
     let arr = []; try { arr = JSON.parse(out || '[]'); } catch (x) {}
     const dial = arr.map(m => (m.ich ? 'Gemma: ' : 'Anrufer: ') + m.text).join('\n').slice(0, 4000);
     if (!dial) return cb(null, 'kein Inhalt');
-    llmFrage('Fasse dieses Telefonat knapp in 2-3 Saetzen zusammen. Nenne Name/Firma/Anliegen und ob ein Rueckruf noetig ist, wenn vorhanden:\n' + dial, (e, t) => { if (e) console.log('[zusammenfassung] LLM-Fehler:', e.message); if (t && typeof t === 'string' && t.trim()) return cb(null, t.trim()); cb(null, 'keine Zusammenfassung'); });
+    // Anrufer hat nichts gesagt -> nichts erfinden lassen (Mini halluzinierte sonst ganze Geschichten)
+    if (!arr.some(m => !m.ich)) return cb(null, 'Anrufer hat nichts gesagt (nur Begrüßung von Gemma).');
+    llmFrage('Fasse dieses Telefonat knapp in 2-3 Saetzen auf Deutsch zusammen. Nenne Name/Firma/Anliegen und ob ein Rueckruf noetig ist, soweit genannt. Erfinde NICHTS, was nicht im Gespraech steht. Die Anrufer-Zeilen stammen aus automatischer Spracherkennung: offensichtlich falsch erkannte oder anstoessige Woerter nicht uebernehmen, sondern als (unklar) kennzeichnen:\n' + dial, (e, t) => { if (e) console.log('[zusammenfassung] LLM-Fehler:', e.message); if (t && typeof t === 'string' && t.trim()) return cb(null, t.trim()); cb(null, 'keine Zusammenfassung'); });
   });
 }
 
@@ -335,5 +343,5 @@ if (require.main === module) {
 }
 
 // Unit-Test-Exporte
-module.exports = { wavHeader, esc, begruessungsText, safeRead, denglisch, zusammenfassung };
+module.exports = { wavHeader, esc, begruessungsText, safeRead, denglisch, wiederholt, zusammenfassung };
 

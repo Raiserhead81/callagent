@@ -36,3 +36,10 @@ test('denglisch: erkennt englische Woerter, laesst sauberes Deutsch durch', () =
   assert.ok(denglisch('Thank you for your patience'));
   assert.equal(denglisch('Guten Tag, Herr Meier. Ich richte Kay gerne aus, dass Sie angerufen haben.'), '');
 });
+
+const { wiederholt } = require('./server.js');
+test('wiederholt: erkennt Schleifen-Zusammenfassungen', () => {
+  const satz = 'Gemma wird den Anruf zurueckgeben und sich mit Kay ueber das Projekt informieren.';
+  assert.equal(wiederholt(satz + ' ' + satz), true);
+  assert.equal(wiederholt('Thomas Becker von Solarfix bittet um Rueckruf morgen. Es geht um das Angebot fuer die Solaranlage.'), false);
+});

@@ -1,0 +1,10 @@
+PASS health-ok
+PASS health-stimme
+PASS start-session
+PASS start-audio (390330 Bytes WAV)
+PASS turn-ok
+PASS end-ok
+PASS log-html
+PASS auth-401
+ALLE TESTS BESTANDEN
+exit=0
