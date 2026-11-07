@@ -16,9 +16,10 @@ public class CallUI extends Activity {
     private static Call aktuellerCall;
     private static String nummerText;
     private static boolean kiModus;
+    private static boolean eingehend;
 
-    public static void setzeCall(Call c, String nummer, boolean ki) {
-        aktuellerCall = c; nummerText = nummer; kiModus = ki;
+    public static void setzeCall(Call c, String nummer, boolean ki, boolean ein) {
+        aktuellerCall = c; nummerText = nummer; kiModus = ki; eingehend = ein;
     }
 
     @Override
@@ -39,6 +40,10 @@ public class CallUI extends Activity {
             tvStatus.setText("🤖 Gemma telefoniert für dich ...\n(siehe Protokoll)");
             btnAnnehmen.setVisibility(View.GONE);
             btnKi.setVisibility(View.GONE);
+        } else if (!eingehend) {
+            tvStatus.setText("Ausgehender Anruf ...");
+            btnAnnehmen.setVisibility(View.GONE);
+            btnKi.setVisibility(View.GONE);
         } else {
             tvStatus.setText("Eingehender Anruf");
             btnAnnehmen.setVisibility(View.VISIBLE);
@@ -50,8 +55,11 @@ public class CallUI extends Activity {
             call.registerCallback(new Call.Callback() {
                 @Override public void onStateChanged(Call c, int state) {
                     runOnUiThread(() -> {
-                        if (state == Call.STATE_ACTIVE && !kiModus)
+                        if (state == Call.STATE_ACTIVE && !kiModus) {
                             tvStatus.setText("Gespräch läuft");
+                            btnAnnehmen.setVisibility(View.GONE);
+                            btnKi.setVisibility(View.GONE);
+                        }
                         if (state == Call.STATE_DISCONNECTED) finish();
                     });
                 }
@@ -74,6 +82,8 @@ public class CallUI extends Activity {
             kiModus = true;
             try { if (call != null) call.answer(
                     android.telecom.VideoProfile.STATE_AUDIO_ONLY); } catch (Exception e) {}
+            InCall.kiCallSetzen(call);
+            InCall.lautsprecher(true);
             AudioLoop.start(this, nummerText == null ? "" : nummerText);
             tvStatus.setText("🤖 Gemma telefoniert für dich ...");
             btnAnnehmen.setVisibility(View.GONE);

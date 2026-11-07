@@ -6,9 +6,9 @@ android {
     defaultConfig {
         applicationId 'de.gemivo.callagent'
         minSdkVersion 29
-        targetSdkVersion 34
-        versionCode 1
-        versionName '1.0'
+        targetSdkVersion 29
+        versionCode 3
+        versionName '1.2-handshake'
     }
     buildTypes {
         release {

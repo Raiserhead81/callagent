@@ -65,6 +65,11 @@
             android:text="KI-Annahme für unbekannte Nummern" />
 
         <Button
+            android:id="@+id/btn_handshake"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Handshake-Test: Gemma sagt Hallo" />
+        <Button
             android:id="@+id/btn_log"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

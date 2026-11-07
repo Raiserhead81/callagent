@@ -29,3 +29,10 @@ test('begruessungstext: nennt Gemma und Kay, bittet um Anliegen', () => {
   assert.match(t, /Kay/);
   assert.match(t, /aufnehmen|Anliegen/i);
 });
+
+const { denglisch } = require('./server.js');
+test('denglisch: erkennt englische Woerter, laesst sauberes Deutsch durch', () => {
+  assert.equal(denglisch('Ich kann ihn nicht connecten, bitte leaven Sie eine Nachricht'), 'connecten');
+  assert.ok(denglisch('Thank you for your patience'));
+  assert.equal(denglisch('Guten Tag, Herr Meier. Ich richte Kay gerne aus, dass Sie angerufen haben.'), '');
+});

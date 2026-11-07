@@ -22,3 +22,10 @@
   gemma4-Antwort: "Ja, kay ist gerade am Telefon..."
 - Gemini-Fallback: gemini-2.5-flash -> 404 (deprecated), auf gemini-3.8-flash
   umgestellt und live getestet ("ok")
+
+## Stand bei PAUSE (07.11. 03:50)
+
+- Backend laeuft + getestet (Unit 3/3, Live 8/8, Gemini-3.8-Fallback).
+- /handshake-Endpunkt eingebaut, aber Bug: Token-Pruefe greift vor Seitenaufruf (Fix: /handshake vor Token-Check ausnehmen).
+- App vom OnePlus DEINSTALLIERT (ColorOS-Blockade ungeloest: Dialer-Rolle verweigert, schemalose DIAL-Filter werden vom PM beim Install geloescht, install -r teils nur scheinbar erfolgreich - IMMER versionName per dumpsys pruefen).
+- Wiederaufnahme: Rechte nur per App-UI-Dialog (adb pm grant verweigert), Token+Vosk per run-as einspielen (Anleitung im Auftrags-Text der letzten Session), clean build wegen Gradle-Cache.

@@ -29,6 +29,7 @@ public class MainActivity extends Activity {
         Button btnRechte = findViewById(R.id.btn_rechte);
         Button btnModell = findViewById(R.id.btn_modell);
         Button btnLog = findViewById(R.id.btn_log);
+        Button btnHs = findViewById(R.id.btn_handshake);
         Button btnToken = findViewById(R.id.btn_token);
         android.widget.EditText tokenEingabe = findViewById(R.id.token_eingabe);
         Switch swKi = findViewById(R.id.sw_ki);
@@ -50,6 +51,7 @@ public class MainActivity extends Activity {
         btnRechte.setOnClickListener(v -> frageRechte());
         btnModell.setOnClickListener(v ->
             startActivity(new Intent(this, ModellDownload.class)));
+        btnHs.setOnClickListener(v -> Handshake.teste(this));
         btnLog.setOnClickListener(v -> {
             String cfg = Konfig.lade(this);
             android.net.Uri u = android.net.Uri.parse("https://callagent.gemivo.de/log?token="
@@ -61,6 +63,18 @@ public class MainActivity extends Activity {
         swKi.setChecked(Konfig.kiAktiv(this));
 
         aktualisiereStatus();
+        pruefeTestanruf(getIntent());
+    }
+
+    @Override
+    protected void onNewIntent(Intent i) { super.onNewIntent(i); pruefeTestanruf(i); }
+
+    /** E2E-Test: am start ... --es testanruf <nummer> */
+    private void pruefeTestanruf(Intent i) {
+        String nr = i == null ? null : i.getStringExtra("testanruf");
+        if (nr == null || nr.isEmpty()) return;
+        i.removeExtra("testanruf");
+        TestVerbindung.anrufSimulieren(this, nr);
     }
 
     @Override

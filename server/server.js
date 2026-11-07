@@ -29,6 +29,7 @@ const APP_TOKEN = process.env.CALLAGENT_TOKEN || safeRead('/opt/callagent/.app-t
 const KEY_PAID = process.env.CALLAGENT_GEMINI_KEY || safeRead('/opt/gemma-live/gemini-key-paid');
 const LLM_KEY = process.env.CALLAGENT_LLM_KEY || safeRead('/etc/gemma-live/llm-key');
 const LLM_MODEL = 'gemma4';
+const MINI_TIMEOUT_MS = parseInt(process.env.CALLAGENT_MINI_TIMEOUT_MS || '7000', 10);
 const DB_DIR = '/opt/callagent/data';
 const DB = DB_DIR + '/calls.db';
 
@@ -42,7 +43,10 @@ Typische Gespraechsfuehrung:
 - Bei Dringlichkeit: "Ich sorge dafuer, dass Kay sich heute noch meldet."
 - Wenn der Anrufer fertig ist oder keine Infos mehr hat: freundlich abschliessen ("Alles klar, ich gebe es an Kay weiter. Einen schoenen Tag noch!").
 - Antworte danach mit "GEMMA_ENDE" im Text, wenn das Gespraech natuerlich abgeschlossen ist (Abschied gesagt und nichts Neues mehr kommt).
-Antworte AUSSCHLIESSLICH als Gemma auf Deutsch, kein Markdown, keine Regieanweisungen.`;
+Antworte AUSSCHLIESSLICH als Gemma auf Deutsch, kein Markdown, keine Regieanweisungen.
+Sprache: sauberes, korrekt geschriebenes Hochdeutsch. KEINE englischen Woerter oder Denglisch (nicht "connecten", "leaven", "callen", "patience").
+Sag nur, was stimmt: Du hast Kay noch NICHT informiert und planst keine Termine - du nimmst die Nachricht auf, Kay bekommt sie nach dem Gespraech.
+Siezen, ausser der Anrufer duzt dich. Deine Antwort wird vorgelesen: keine Abkuerzungen, keine Aufzaehlungen, keine Sonderzeichen.`;
 
 // ---------- SQLite (via sqlite3-cli, keine npm-Abhaengigkeit) ----------
 function dbInit() {
@@ -85,9 +89,9 @@ function miniChat(historie, cb) {
   let fertig = false;
   const msgs = [{ role: 'system', content: SYSTEM_PROMPT }]
     .concat(historie.map(m => ({ role: m.ich ? 'assistant' : 'user', content: m.text })));
-  const data = JSON.stringify({ model: LLM_MODEL, messages: msgs, max_tokens: 150, temperature: 0.7 });
-  // Telefon: nach 15s muss Gemini uebernehmen (GPU evtl. durch andere Jobs belegt)
-  const req = http.request({ method: 'POST', hostname: '127.0.0.1', port: 11440, path: '/v1/chat/completions', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + LLM_KEY, 'Content-Length': Buffer.byteLength(data) }, timeout: 15000 }, resp => {
+  const data = JSON.stringify({ model: LLM_MODEL, messages: msgs, max_tokens: 150, temperature: 0.3 });
+  // Telefon: nach MINI_TIMEOUT_MS muss Gemini uebernehmen (GPU oft durch andere Jobs belegt, TTFT 2-40s)
+  const req = http.request({ method: 'POST', hostname: '127.0.0.1', port: 11440, path: '/v1/chat/completions', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + LLM_KEY, 'Content-Length': Buffer.byteLength(data) }, timeout: MINI_TIMEOUT_MS }, resp => {
     const chunks = [];
     resp.on('data', d => chunks.push(d));
     resp.on('end', () => {
@@ -96,15 +100,20 @@ function miniChat(historie, cb) {
       try {
         const j = JSON.parse(Buffer.concat(chunks).toString());
         const t = (j.choices[0].message.content || '').trim();
+        if (t && denglisch(t)) return cb(new Error('mini denglisch: ' + denglisch(t)));
         if (t) return cb(null, t);
         cb(new Error('mini leer'));
       } catch (e) { cb(e); }
     });
   });
   req.on('error', e => { if (fertig) return; fertig = true; cb(new Error('mini: ' + e.message)); });
-  req.on('timeout', () => { req.destroy(new Error('mini-timeout-15s')) });
+  req.on('timeout', () => { req.destroy(new Error('mini-timeout-' + MINI_TIMEOUT_MS + 'ms')) });
   req.write(data); req.end();
 }
+
+// Englische Woerter/Denglisch in Antworten erkennen (Mini-Gemma rutscht oft ins Englische)
+const ENGLISCH = /\b(the|and|you|your|please|patience|sorry|okay then|connect\w*|leave\w*|call(en|ing|ed)?|meeting|feedback|appointment|message|thanks|thank)\b/i;
+function denglisch(t) { const m = (t || '').match(ENGLISCH); return m ? m[0] : ''; }
 
 // LLM: erst Mini-GPU, Fallback Gemini-Text (idempotent)
 function antwortText(historie, cb) {
@@ -117,11 +126,11 @@ function antwortText(historie, cb) {
 }
 
 // ---------- Gemini-Text (Fallback) ----------
-function geminiText(historie, cb) {
+function geminiText(historie, cb, system) {
   const body = {
-    system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+    system_instruction: { parts: [{ text: system || SYSTEM_PROMPT }] },
     contents: historie.map(m => ({ role: m.ich ? 'model' : 'user', parts: [{ text: m.text }] })),
-    generationConfig: { maxOutputTokens: 150, temperature: 0.7 }
+    generationConfig: { maxOutputTokens: 300, temperature: 0.4, thinkingConfig: { thinkingBudget: 0 } }
   };
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_TEXT_MODEL}:generateContent`;
   httpsJson(url, { 'x-goog-api-key': KEY_PAID }, body, (e, status, j) => {
@@ -166,10 +175,17 @@ function wavHeader(datenLen, rate, kanal, bits) {
 
 // Freie LLM-Frage ohne Telefon-Persona (erst Mini, dann Gemini)
 function llmFrage(frage, cb) {
+  llmFrageMini(frage, (e, t) => {
+    if (!e && t) return cb(null, t);
+    console.log('[llmfrage] Mini weg (' + (e ? e.message : '?') + ') -> Gemini');
+    geminiText([{ ich: false, text: frage }], cb, 'Du fasst Telefonate sachlich auf Deutsch zusammen.');
+  });
+}
+function llmFrageMini(frage, cb) {
   let fertig = false;
   const msgs = [{ role: 'user', content: frage }];
   const data = JSON.stringify({ model: LLM_MODEL, messages: msgs, max_tokens: 200, temperature: 0.3 });
-  const req = http.request({ method: 'POST', hostname: '127.0.0.1', port: 11440, path: '/v1/chat/completions', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + LLM_KEY, 'Content-Length': Buffer.byteLength(data) }, timeout: 60000 }, resp => {
+  const req = http.request({ method: 'POST', hostname: '127.0.0.1', port: 11440, path: '/v1/chat/completions', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + LLM_KEY, 'Content-Length': Buffer.byteLength(data) }, timeout: 30000 }, resp => {
     const chunks = [];
     resp.on('data', d => chunks.push(d));
     resp.on('end', () => {
@@ -243,6 +259,8 @@ const server = http.createServer((req, res) => {
       geminiTTS(begr, (e, b64) => {
         if (e) { console.log('[tts] Start fehlgeschlagen', e.message); return json(res, 500, { ok: false, fehler: 'tts ' + e.message }); }
         s.historie.push({ ich: true, text: begr });
+        const merke = () => s.dbId ? protokollAppend(s.dbId, true, begr) : setTimeout(merke, 200);
+        merke();
         json(res, 200, { ok: true, session: id, begruessung_text: begr, audio_b64: b64 });
       });
     });
@@ -274,7 +292,7 @@ const server = http.createServer((req, res) => {
       if (!s) return json(res, 404, { ok: false, fehler: 'session' });
       // Serialisieren: erst Ende speichern, DANN zusammenfassen (SQLite-Lock-Race vermeiden)
       protokollEnde(s.dbId, body.grund || 'aufgelegt', () => {
-        zusammenfassung(s.dbId, sum => {
+        zusammenfassung(s.dbId, (err, sum) => {
           if (!sum || typeof sum !== 'string') sum = 'keine Zusammenfassung';
           console.log('[end] Zusammenfassung db=' + s.dbId + ':', sum.slice(0, 80));
           dbRunSafe(`UPDATE calls SET zusammenfassung=${esc(sum)} WHERE id=${s.dbId};`);
@@ -283,6 +301,10 @@ const server = http.createServer((req, res) => {
         });
       });
     });
+  } else if (u.pathname === '/handshake') {
+    // Test-Seite: Handy-Browser ruft /api/start und spielt Gemmas Begruessung ab
+    const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>CallAgent Handshake</title><style>body{font-family:system-ui;background:#111;color:#fff;text-align:center;padding:2rem}button{font-size:1.3rem;padding:1rem 2rem;border-radius:12px;border:0;background:#2ecc71;color:#fff}#s{margin-top:1.5rem;color:#aaa}</style></head><body><h1>📞 CallAgent Handshake</h1><p id="s">Tippen, dann spricht Gemma (Kore) vom Server.</p><button onclick="los()">🤖 Gemma sagt Hallo</button><script>const T=new URLSearchParams(location.search).get('token');async function los(){document.getElementById('s').textContent='Verbinde mit callagent.gemivo.de ...';try{const r=await fetch('/api/start',{method:'POST',headers:{'Content-Type':'application/json','X-App-Token':T},body:JSON.stringify({nummer:'handshake-browser'})});const j=await r.json();if(!j.ok)throw new Error(j.fehler||'Server-No');const b=atob(j.audio_b64);const buf=new Uint8Array(b.length);for(let i=0;i<b.length;i++)buf[i]=b.charCodeAt(i);const ctx=new (window.AudioContext||window.webkitAudioContext)();await ctx.resume();const ab=await ctx.decodeAudioData(buf.buffer);const src=ctx.createBufferSource();src.buffer=ab;src.connect(ctx.destination);src.start();document.getElementById('s').textContent='\u2705 Handshake OK: '+(j.beguessung_text||j.begruessung_text||'').slice(0,60);}catch(e){document.getElementById('s').textContent='\u274c FEHLER: '+e.message;}}</script></body></html>`;
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); res.end(html);
   } else if (u.pathname === '/log') {
     dbRunSafe('SELECT id,nummer,start,ende,grund,zusammenfassung FROM calls ORDER BY id DESC LIMIT 50;', (e, out) => {
       let html = '<html><head><meta charset="utf-8"><title>CallAgent-Protokoll</title></head><body style="font-family:system-ui;max-width:860px;margin:2rem auto"><h1>📞 CallAgent-Protokoll</h1>';
@@ -313,5 +335,5 @@ if (require.main === module) {
 }
 
 // Unit-Test-Exporte
-module.exports = { wavHeader, esc, begruessungsText, safeRead };
+module.exports = { wavHeader, esc, begruessungsText, safeRead, denglisch, zusammenfassung };
 

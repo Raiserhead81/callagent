@@ -44,7 +44,8 @@ public class AudioLoop extends Service {
     private AudioTrack uplink;
     private AudioManager audio;
     private boolean laeuft;
-    private boolean spielt; // Audio-Ausgabe aktiv -> STT pausieren
+    private volatile boolean spielt; // Audio-Ausgabe aktiv -> STT pausieren
+    private long letzteSprache;
 
     // ---------- Lebenszyklus ----------
     public static void start(Context ctx, String nummer) {
@@ -88,7 +89,7 @@ public class AudioLoop extends Service {
     // ---------- 1. Start: Begruessung holen + spielen, dann zuhoeren ----------
     private void anrufStarten() {
         try {
-            audio.setMode(AudioManager.MODE_IN_CALL);
+            Log.i(TAG, "KI-Anruf start nummer=" + nummer + " mode=" + audio.getMode());
             JSONObject r = serverPost("/api/start",
                     "{\"nummer\":" + jsonStr(nummer) + "}");
             session = r.getString("session");
@@ -103,6 +104,13 @@ public class AudioLoop extends Service {
     }
 
     // ---------- 2. Zuhoeren: Downlink -> Vosk (synchroner Recognizer) ----------
+    private static final int[] QUELLEN = {
+            MediaRecorder.AudioSource.VOICE_DOWNLINK,   // nur System-Apps, bei uns i.d.R. Fehler/Stille
+            MediaRecorder.AudioSource.MIC,              // Lautsprecher-Weg: Anrufer kommt aus dem Speaker
+            MediaRecorder.AudioSource.VOICE_RECOGNITION,
+            MediaRecorder.AudioSource.VOICE_COMMUNICATION
+    };
+
     private void zuhoeren() {
         try {
             File modell = Konfig.modellOrdner(this);
@@ -111,24 +119,60 @@ public class AudioLoop extends Service {
             vosk = new Recognizer(m, 16000.0f);
             int groesse = AudioRecord.getMinBufferSize(16000,
                     AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);
-            AudioRecord rec = new AudioRecord(MediaRecorder.AudioSource.VOICE_DOWNLINK,
-                    16000, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT,
-                    Math.max(groesse, 32000));
-            rec.startRecording();
-            byte[] puffer = new byte[3200]; // 100 ms
-            while (laeuft) {
-                int n = rec.read(puffer, 0, puffer.length);
-                if (n <= 0 || spielt) continue;
-                if (vosk.acceptWaveForm(puffer, n)) {
-                    // Satz (Utterance) fertig
-                    String ergebnis = vosk.getResult();
-                    JSONObject j = new JSONObject(ergebnis);
-                    String text = j.optString("text", "").trim();
-                    if (!text.isEmpty()) verarbeiteText(text);
+            for (int qi = 0; qi < QUELLEN.length && laeuft; qi++) {
+                Log.i(TAG, "Audio-Quelle Test #" + qi);
+                AudioRecord rec;
+                try {
+                    rec = new AudioRecord(QUELLEN[qi], 16000, AudioFormat.CHANNEL_IN_MONO,
+                            AudioFormat.ENCODING_PCM_16BIT, Math.max(groesse, 32000));
+                    if (rec.getState() != AudioRecord.STATE_INITIALIZED) {
+                        Log.i(TAG, "Audio-Quelle #" + qi + " nicht verfuegbar");
+                        rec.release(); continue;
+                    }
+                    rec.startRecording();
+                    if (rec.getRecordingState() != AudioRecord.RECORDSTATE_RECORDING) {
+                        Log.i(TAG, "Audio-Quelle #" + qi + " startet nicht");
+                        rec.release(); continue;
+                    }
+                } catch (Exception e) { Log.i(TAG, "Audio-Quelle #" + qi + ": " + e); continue; }
+                byte[] puffer = new byte[3200];
+                long summe = 0; int reads = 0; boolean aktiv = false;
+                long start = System.currentTimeMillis();
+                while (laeuft) {
+                    int n = rec.read(puffer, 0, puffer.length);
+                    if (n <= 0 || spielt) continue;
+                    for (int i = 0; i + 1 < n && reads < 60; i += 20) {
+                        int w = (short) ((puffer[i] & 0xFF) | (puffer[i + 1] << 8));
+                        summe += Math.abs(w); reads++;
+                    }
+                    if (!aktiv && System.currentTimeMillis() - start > 3000) {
+                        // Vom System stummgeschaltete Aufnahme liefert exakt 0, echtes Mikro nie
+                        if (reads > 0 && summe > 0) {
+                            aktiv = true;
+                            Log.i(TAG, "Audio-Quelle #" + qi + " aktiv (avg " + summe / reads + ")");
+                            letzteSprache = System.currentTimeMillis();
+                        } else {
+                            Log.i(TAG, "Audio-Quelle #" + qi + " stille (avg "
+                                    + (reads > 0 ? summe / reads : 0) + "), naechste");
+                            break;
+                        }
+                    }
+                    if (aktiv && System.currentTimeMillis() - letzteSprache > 60000) {
+                        Log.i(TAG, "60s nichts verstanden -> Ende");
+                        beenden("stille"); break;
+                    }
+                    if (aktiv && vosk.acceptWaveForm(puffer, n)) {
+                        String ergebnis = vosk.getResult();
+                        JSONObject j = new JSONObject(ergebnis);
+                        String text = j.optString("text", "").trim();
+                        if (!text.isEmpty()) { letzteSprache = System.currentTimeMillis(); verarbeiteText(text); }
+                    }
                 }
+                rec.stop(); rec.release();
+                if (aktiv) return; // diese Quelle traegt Audio
             }
-            rec.stop(); rec.release();
             m.close();
+            if (laeuft) { Log.e(TAG, "Keine Audio-Quelle liefert Ton (Aufnahme im Anruf gesperrt?)"); beenden("kein-audio"); }
         } catch (Exception e) {
             Log.e(TAG, "zuhoeren: " + e);
             beenden("fehler-zuhoeren");
@@ -185,10 +229,18 @@ public class AudioLoop extends Service {
             }
             uplink.play();
             uplink.write(pcm, 0, pcm.length);
+            int frames = pcm.length / 2;
+            long bis = System.currentTimeMillis() + frames * 1000L / rate + 3000;
+            while (uplink.getPlaybackHeadPosition() < frames && System.currentTimeMillis() < bis)
+                Thread.sleep(50);
             uplink.stop();
+            uplink.flush();
+            Thread.sleep(300); // Nachhall
+            Log.i(TAG, "gespielt " + (frames * 1000L / rate) + " ms");
         } catch (Exception e) {
             Log.e(TAG, "spielen: " + e);
         } finally {
+            letzteSprache = System.currentTimeMillis();
             spielt = false;
         }
     }
@@ -239,7 +291,8 @@ public class AudioLoop extends Service {
             } catch (Exception e) { /* Protokoll trotzdem serverseitig vorhanden */ }
         }, "ki-end").start();
         try { if (uplink != null) uplink.release(); } catch (Exception e) {}
-        try { audio.setMode(AudioManager.MODE_NORMAL); } catch (Exception e) {}
+        Log.i(TAG, "KI-Ende: " + grund);
+        if (!"aufgelegt".equals(grund)) InCall.kiAuflegen();
         stopSelf();
         instanz = null;
     }
