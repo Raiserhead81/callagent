@@ -29,7 +29,7 @@ public class Konfig {
         return new File(c.getFilesDir(), "vosk-modell");
     }
     public static boolean modellDa(Context c) {
-        File f = new File(modellOrdner(c), "final.mdl");
+        File f = new File(modellOrdner(c), "am/final.mdl");
         return f.exists();
     }
     public static String baseUrl() { return "https://callagent.gemivo.de"; }
