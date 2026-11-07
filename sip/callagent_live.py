@@ -171,8 +171,9 @@ class LiveAnruf:
                     await self.notiz(False, self.text_er)
                     await self.notiz(True, self.text_ich)
 
-    async def lauf(self, prompt):
-        key = open(KEY_DATEI).read().strip()
+    async def lauf(self, prompt, key=None):
+        # Mandanten-Key (BYOK) vom Backend; ohne -> Kays paid-Key-Datei (Owner)
+        key = key or open(KEY_DATEI).read().strip()
         client = genai.Client(api_key=key)
         cfg = types.LiveConnectConfig(
             response_modalities=["AUDIO"],

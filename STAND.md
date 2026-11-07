@@ -26,3 +26,14 @@
 
 ## Repo / Build
 GitHub Raiserhead81/callagent (main, letzter e8cc7d8+), lokal ~/callagent-app (Air). APK-Build auf gemivo /opt/callagent-app (`./gradlew clean assembleDebug`, SDK /opt/android-sdk). Backups /opt/_backups/callagent/. Selbsttest `/opt/callagent/sip/selbsttest.sh`, Live-API-Test `server/test.sh`, Unit `server/test-unit.js`. Lock-Bereich `callagent`.
+
+# Produkt „Gemma Anrufassistent“ (Multi-Tenant, ab 07.11.2026)
+- Web: https://anruf.gemivo.de (Next.js 16 standalone, `web/`, /opt/gemivo-anruf, systemd `gemivo-anruf`, :3124). Öffentlich: `/`, `/anleitung`. Mit gemivo-SSO: `/app` (Dashboard), `/einrichtung`, `/koppeln`, `/admin` (nur uid 8).
+- Gemeinsame DB `/opt/callagent/data/calls.db` (WAL). Tabellen legt die Engine an (`server/mandant.js` migrieren(), additiv): `calls.user_id`, `ca_mandant`, `ca_geraet`, `ca_kopplung`, `ca_tg_link`, `ca_push`, `ca_feedback`, `ca_funnel`. Prisma nur als Client, NIE db push/migrate.
+- Kay = Mandant uid 8, `sip_modus=legacy` (Registrierung weiter aus sip.env/wg0, wird nie generiert), paid-Key-Datei, Telegram Hermes. Alle alten Anrufe user_id=8.
+- Fremde Mandanten: `/etc/asterisk/pjsip_mandanten.conf` (generiert, transport-m4 0.0.0.0:5070 + transport-m6 [::]:5070, je Mandant m<uid>-reg mit line=yes, endpoint set_var=CA_TENANT=<uid>). Dialplan schreibt CA_TENANT in die Anrufer-Datei, Brücke reicht `tenant` an /api/start, Engine liefert Prompt + BYOK-Key, Zusammenfassung über den Nutzer-Key, Benachrichtigung über Web-App (/api/intern/benachrichtigen: Push/E-Mail). Ohne Freigabe (kein Key/Name/inaktiv/Limit/Abo): feste Ansage `sip/ansage-inaktiv.sln` + auflegen.
+- Secrets: SIP-Pass + Gemini-Key AES-256-GCM, Schlüssel `/etc/gemivo/anruf.key` (600).
+- Bezahlschranke vorbereitet (`web/src/lib/zugang.ts`, 14 Tage Test, Plan anruf/bundle), per `ANRUF_PAYWALL=false` AUS (Kay: Beta kostenlos).
+- Tests: `server/test-unit.js`, `web` vitest (`npm test`), Playwright E2E auf gemivo `node /opt/gemivo-anruf/tests/e2e/run.mjs`, SIP-Mandanten-Selbsttest `/opt/callagent/sip/selbsttest-mandant.sh`, Kays Selbsttest `/opt/callagent/sip/selbsttest.sh`.
+- Deploy Web: `deploy/deploy-web.sh`. APK: `/var/www/apk-host/anruf.gemivo.de/download/gemivo-anruf.apk` (v2.0-assistent, Debug-Signatur wie 1.3).
+- Rechtstexte nur als ENTWURF in `docs/rechtstexte-entwurf/` (nicht verlinkt).

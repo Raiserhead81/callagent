@@ -16,6 +16,12 @@ public class Konfig {
         prefs(c).edit().putString("token", t).apply();
     }
 
+    // Geraete-Token fuer anruf.gemivo.de (nach Kopplung, Multi-Tenant)
+    public static String geraeteToken(Context c) { return prefs(c).getString("geraete_token", ""); }
+    public static void setzeGeraeteToken(Context c, String t) { prefs(c).edit().putString("geraete_token", t).apply(); }
+    public static boolean flag(Context c, String k) { return prefs(c).getBoolean(k, false); }
+    public static void setzeFlag(Context c, String k, boolean v) { prefs(c).edit().putBoolean(k, v).apply(); }
+
     public static boolean kiAktiv(Context c) {
         return prefs(c).getBoolean("ki_aktiv", true);
     }

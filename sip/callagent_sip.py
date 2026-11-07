@@ -26,6 +26,7 @@ ANRUFER_DIR = os.environ.get("SIP_ANRUFER_DIR", "/run/callagent-sip")
 STILLE_ENDE_S = float(os.environ.get("SIP_STILLE_ENDE_S", "10"))
 MAX_DAUER_S = float(os.environ.get("SIP_MAX_DAUER_S", "60"))
 KI_MODUS = os.environ.get("CALLAGENT_KI_MODUS", "live")  # live | klassisch
+ANSAGE_DATEI = os.environ.get("CALLAGENT_ANSAGE", "/opt/callagent/sip/ansage-inaktiv.sln")
 
 RATE = 8000
 STT_RATE = 16000  # Vosk-Modell ist auf 16 kHz trainiert
@@ -108,6 +109,7 @@ class Anruf:
         self.letzte_sprache = time.monotonic()
         self.start = time.monotonic()
         self.grund = "sip-aufgelegt"
+        self.tenant = ""   # gemivo-uid des Mandanten (Dialplan CA_TENANT); leer = Kays Altanschluss
         self.rec = KaldiRecognizer(modell, STT_RATE)
         self.pegel_summe = self.pegel_n = 0
 
@@ -158,27 +160,41 @@ class Anruf:
             uid = str(uuid.UUID(bytes=daten))
             try:
                 pfad = os.path.join(ANRUFER_DIR, uid)
-                self.nummer = open(pfad).read().strip() or "unbekannt"
+                zeilen = open(pfad).read().split("\n")
+                self.nummer = zeilen[0].strip() or "unbekannt"
+                self.tenant = (zeilen[1].strip() if len(zeilen) > 1 else "")
             except OSError:
                 pass
-            log.info("Anruf %s von %s", uid, self.nummer)
+            log.info("Anruf %s von %s (Mandant %s)", uid, self.nummer, self.tenant or "owner")
+        fallback_ok = True
         if KI_MODUS == "live":
-            r = await asyncio.to_thread(backend, "/api/start", {"nummer": self.nummer, "live": True})
+            r = await asyncio.to_thread(backend, "/api/start", {"nummer": self.nummer, "live": True, "tenant": self.tenant})
+            if r.get("ok") and r.get("ablehnen"):
+                log.info("[%s] Mandant %s nicht freigegeben (%s) -> Ansage + auflegen", self.nummer, self.tenant, r.get("grund"))
+                await self.ansage_und_auflegen()
+                return
             if r.get("ok"):
                 self.session = r["session"]
+                fallback_ok = bool(r.get("fallback_erlaubt", True))
                 live = None
                 try:
                     from callagent_live import LiveAnruf
                     live = LiveAnruf(self)
-                    await live.lauf(r["prompt"])
+                    await live.lauf(r["prompt"], r.get("gemini_key"))
                     return
                 except Exception as e:
-                    if not self.offen or (live and (live.puffer or live.text_ich)):
-                        raise  # Gespraech lief schon -> kein Neustart mitten im Anruf
+                    if not self.offen or (live and (live.puffer or live.text_ich)) or not fallback_ok:
+                        raise  # Gespraech lief schon / fremder Mandant -> kein Wechsel auf Kays Altweg
                     log.exception("[%s] Live fehlgeschlagen, alter Weg: %s", self.nummer, e)
                     await asyncio.to_thread(backend, "/api/end", {"session": self.session, "grund": "live-fehler"}, 60)
                     self.session = None
-        r = await asyncio.to_thread(backend, "/api/start", {"nummer": self.nummer})
+        if self.tenant and not fallback_ok:
+            await self.senden(0x00)
+            return
+        r = await asyncio.to_thread(backend, "/api/start", {"nummer": self.nummer, "tenant": self.tenant})
+        if r.get("ok") and r.get("ablehnen"):
+            await self.ansage_und_auflegen()
+            return
         if not r.get("ok"):
             log.error("[%s] start-Fehler: %s", self.nummer, r.get("fehler"))
             await self.senden(0x00)
@@ -222,6 +238,23 @@ class Anruf:
         self.offen = False
         if aufgabe and not aufgabe.done():
             aufgabe.cancel()
+
+    async def ansage_und_auflegen(self):
+        """Kurze feste Ansage (8 kHz slin, vorab erzeugt) und auflegen - ohne Gemini/Key."""
+        try:
+            slin = open(ANSAGE_DATEI, "rb").read()
+        except OSError:
+            slin = b""
+        t0 = time.monotonic()
+        for i in range(0, len(slin), FRAME):
+            if not self.offen:
+                break
+            await self.senden(0x10, slin[i:i + FRAME].ljust(FRAME, b"\0"))
+            await asyncio.sleep(max(0, t0 + (i // FRAME + 1) * 0.02 - time.monotonic()))
+        await asyncio.sleep(0.3)
+        self.grund = "sip-abgelehnt"
+        await self.senden(0x00)
+        self.offen = False
 
     def satzende(self):
         """Nach Paketpause: Stille einspeisen und ggf. den angefangenen Satz abschliessen."""

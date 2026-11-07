@@ -1,0 +1,20 @@
+[Unit]
+Description=gemivo Anrufassistent Web (anruf.gemivo.de, Next.js)
+After=network.target callagent.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/gemivo-anruf/.next/standalone
+ExecStart=/usr/bin/node server.js
+Environment=NODE_ENV=production
+Environment=PORT=3124
+Environment=HOSTNAME=127.0.0.1
+Environment=TZ=Europe/Berlin
+Environment=DATABASE_URL=file:/opt/callagent/data/calls.db
+# Bezahlschranke vorbereitet, Kay 07.11.2026: Beta kostenlos -> AUS
+Environment=ANRUF_PAYWALL=false
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

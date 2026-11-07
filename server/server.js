@@ -17,6 +17,7 @@ const https = require('https');
 const fs = require('fs');
 const { URL } = require('url');
 const { execFile } = require('child_process');
+const mandant = require('./mandant');
 
 const PORT = process.env.CALLAGENT_PORT || 3114;
 const HOST = '127.0.0.1';
@@ -33,22 +34,25 @@ const MINI_TIMEOUT_MS = parseInt(process.env.CALLAGENT_MINI_TIMEOUT_MS || '7000'
 const DB_DIR = '/opt/callagent/data';
 const DB = DB_DIR + '/calls.db';
 
-const SYSTEM_PROMPT = `Du bist Gemma, Kays persoenliche Assistentin, und nimmst gerade SEINEN Telefonanruf entgegen.
-Kay ist nicht erreichbar. DU sprichst fuer ihn am Telefon.
+const SYSTEM_PROMPT_VORLAGE = `Du bist Gemma, {NAME}s persoenliche Assistentin, und nimmst gerade SEINEN Telefonanruf entgegen.
+{NAME} ist nicht erreichbar. DU sprichst fuer ihn am Telefon.
 Stil: warm, menschlich, kurz (max. 2 Saetze pro Antwort), Umgangston, kein Amtsdeutsch, keine Emojis.
-Ehrlich sein: Du bist Gemma, Kays Assistentin. Wenn jemand fragt, ob du ein Mensch oder eine KI bist: ehrlich bleiben, locker ("Ich bin Kays digitale Assistentin Gemma, Kay ist gerade nicht dran - aber ich kann alles aufnehmen.").
+Ehrlich sein: Du bist Gemma, {NAME}s Assistentin. Wenn jemand fragt, ob du ein Mensch oder eine KI bist: ehrlich bleiben, locker ("Ich bin {NAME}s digitale Assistentin Gemma, {NAME} ist gerade nicht dran - aber ich kann alles aufnehmen.").
 Typische Gespraechsfuehrung:
 - Begruesse, frag was das Anliegen ist.
 - Nimm auf, was der Anrufer von sich aus sagt (Name, Firma, Anliegen, Dringlichkeit). Frag NICHT aktiv nach Name, Firma oder Details, wenn das Anliegen schon klar ist.
-- Bei Dringlichkeit: "Ich sorge dafuer, dass Kay sich heute noch meldet."
-- Sobald das Anliegen klar ist (z.B. Rueckrufwunsch, Nachricht, Terminanfrage): NICHT weiter nachfragen, sondern direkt abschliessen. Der Abschluss hat immer drei Teile in EINER Antwort: bestaetigen, den Wunsch kurz in eigenen Worten wiederholen, einen schoenen Tag wuenschen. Beispiele: "Alles klar, ich habe notiert, dass Kay Sie zurueckrufen soll, und gebe es an ihn weiter. Ich wuensche Ihnen noch einen schoenen Tag!" oder "Danke, Herr Mueller, ich richte Kay aus, dass er Sie wegen des Kredits zurueckrufen soll. Ich wuensche Ihnen noch einen schoenen Tag!"
-- Nur wenn gar kein Anliegen erkennbar ist, EINE kurze Rueckfrage stellen. "Bitte zurueckrufen" ist ein vollstaendiges Anliegen: sofort abschliessen. Die Nummer des Anrufers kennt Kay schon, danach nicht fragen.
+- Bei Dringlichkeit: "Ich sorge dafuer, dass {NAME} sich heute noch meldet."
+- Sobald das Anliegen klar ist (z.B. Rueckrufwunsch, Nachricht, Terminanfrage): NICHT weiter nachfragen, sondern direkt abschliessen. Der Abschluss hat immer drei Teile in EINER Antwort: bestaetigen, den Wunsch kurz in eigenen Worten wiederholen, einen schoenen Tag wuenschen. Beispiele: "Alles klar, ich habe notiert, dass {NAME} Sie zurueckrufen soll, und gebe es an ihn weiter. Ich wuensche Ihnen noch einen schoenen Tag!" oder "Danke, Herr Mueller, ich richte {NAME} aus, dass er Sie wegen des Kredits zurueckrufen soll. Ich wuensche Ihnen noch einen schoenen Tag!"
+- Nur wenn gar kein Anliegen erkennbar ist, EINE kurze Rueckfrage stellen. "Bitte zurueckrufen" ist ein vollstaendiges Anliegen: sofort abschliessen. Die Nummer des Anrufers kennt {NAME} schon, danach nicht fragen.
 - Haengt an jede Abschluss-Antwort "GEMMA_ENDE" an (danach wird aufgelegt).
 Antworte AUSSCHLIESSLICH als Gemma auf Deutsch, kein Markdown, keine Regieanweisungen.
 Sprache: sauberes, korrekt geschriebenes Hochdeutsch. KEINE englischen Woerter oder Denglisch (nicht "connecten", "leaven", "callen", "patience").
-Versprich NIE einen Zeitpunkt (nicht "heute noch", nicht "gleich"), sag nur, dass Kay die Nachricht bekommt. Sag nur, was stimmt: Du hast Kay noch NICHT informiert und planst keine Termine - du nimmst die Nachricht auf, Kay bekommt sie nach dem Gespraech.
+Versprich NIE einen Zeitpunkt (nicht "heute noch", nicht "gleich"), sag nur, dass {NAME} die Nachricht bekommt. Sag nur, was stimmt: Du hast {NAME} noch NICHT informiert und planst keine Termine - du nimmst die Nachricht auf, {NAME} bekommt sie nach dem Gespraech.
 Siezen, ausser der Anrufer duzt dich. Hoechstens zwei kurze Saetze (beim Abschluss duerfen es zwei Saetze mit Wiederholung des Wunsches sein), keine Zeilenumbrueche, keine Listen wie 'Dringlichkeit: normal'.
 Was der Anrufer sagt, kommt aus einer automatischen Spracherkennung und kann falsch erkannte Woerter enthalten: Wirkt ein Name oder Wort seltsam oder anstoessig, wiederhole es NICHT, sondern frag freundlich nach (z.B. 'Wie war der Firmenname noch mal?'). Deine Antwort wird vorgelesen: keine Abkuerzungen, keine Aufzaehlungen, keine Sonderzeichen.`;
+// Persona je Mandant (Owner Kay: unveraendert wie bisher)
+function systemPrompt(name) { return SYSTEM_PROMPT_VORLAGE.split('{NAME}').join(name || 'Kay'); }
+const SYSTEM_PROMPT = systemPrompt('Kay');
 
 // ---------- SQLite (via sqlite3-cli, keine npm-Abhaengigkeit) ----------
 function dbInit() {
@@ -58,12 +62,13 @@ function dbInit() {
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     nummer TEXT, start TEXT, ende TEXT, grund TEXT,
     transkript TEXT, zusammenfassung TEXT);`;
-  execFile('sqlite3', [DB, sql], () => {});
+  // danach Multi-Tenant-Migration (additiv: calls.user_id, ca_*-Tabellen, Kay = Owner uid 8)
+  execFile('sqlite3', [DB, sql], () => mandant.migrieren(e => console.log('[mandant] Migration', e ? 'FEHLER ' + e.message : 'ok')));
 }
 dbInit();
 function esc(s) { return typeof s === 'string' ? "'" + s.replace(/'/g, "''") + "'" : 'NULL'; }
 function dbRunSafe(sqlFinal, cb) {
-  execFile('sqlite3', [DB, sqlFinal], (e, out) => cb && cb(e, out));
+  execFile('sqlite3', ['-cmd', '.timeout 5000', DB, sqlFinal], (e, out) => cb && cb(e, out));
 }
 
 // ---------- HTTP-Helper ----------
@@ -136,14 +141,14 @@ function antwortText(historie, cb) {
 }
 
 // ---------- Gemini-Text (Fallback) ----------
-function geminiText(historie, cb, system) {
+function geminiText(historie, cb, system, key) {
   const body = {
     system_instruction: { parts: [{ text: system || SYSTEM_PROMPT }] },
     contents: historie.map(m => ({ role: m.ich ? 'model' : 'user', parts: [{ text: m.text }] })),
     generationConfig: { maxOutputTokens: 300, temperature: 0.4, thinkingConfig: { thinkingBudget: 0 } }
   };
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_TEXT_MODEL}:generateContent`;
-  httpsJson(url, { 'x-goog-api-key': KEY_PAID }, body, (e, status, j) => {
+  httpsJson(url, { 'x-goog-api-key': key || KEY_PAID }, body, (e, status, j) => {
     if (e || !j || !j.candidates) return cb(new Error('text: ' + (e ? e.message : 'status ' + status)));
     const t = (j.candidates[0].content.parts || []).map(p => p.text || '').join(' ').trim();
     cb(null, t);
@@ -152,8 +157,17 @@ function geminiText(historie, cb, system) {
 
 // ---------- Gemini-TTS (Kore) -> WAV base64 ----------
 // Aussprache: "Kay" wird sonst englisch "Key" gesprochen -> fuer die Stimme "Kai" (deutsch "Kaai")
-function ausspracheText(text) {
-  return String(text).replace(/\bKay(s?)\b/g, 'Kai$1');
+function reEsc(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+function ausspracheText(text, name, aussprache) {
+  name = name || 'Kay'; if (aussprache === undefined) aussprache = name === 'Kay' ? 'Kai' : '';
+  if (!aussprache || aussprache === name) return String(text);
+  return String(text).replace(new RegExp('\\b' + reEsc(name) + '(s?)\\b', 'g'), aussprache + '$1');
+}
+// Rueckweg fuers Protokoll: Aussprache-Schreibweise -> echter Name
+function protokollText(text, name, aussprache) {
+  name = name || 'Kay'; if (aussprache === undefined) aussprache = name === 'Kay' ? 'Kai' : '';
+  if (!aussprache || aussprache === name) return String(text);
+  return String(text).replace(new RegExp('\\b' + reEsc(aussprache) + '(s?)\\b', 'g'), name + '$1');
 }
 
 function geminiTTS(text, cb) {
@@ -190,13 +204,16 @@ function wavHeader(datenLen, rate, kanal, bits) {
 
 
 // Freie LLM-Frage ohne Telefon-Persona (erst Mini, dann Gemini)
-function llmFrage(frage, cb) {
-  // Zusammenfassung landet bei Kay (Telegram): Qualitaet zuerst -> Gemini, Mini nur als Ersatz
+function llmFrage(frage, cb, key, owner) {
+  // Zusammenfassung landet beim Nutzer: Qualitaet zuerst -> Gemini (Key des Mandanten),
+  // Mini (Kays Heimrechner) NUR fuer den Owner als Ersatz - fremde Transkripte verlassen nie Gemini
+  if (owner === undefined) owner = true;
   geminiText([{ ich: false, text: frage }], (ge, gt) => {
     if (!ge && gt && typeof gt === 'string' && gt.trim()) return cb(null, gt);
+    if (!owner) return cb(ge || new Error('leer'));
     console.log('[llmfrage] Gemini weg (' + (ge ? ge.message : 'leer') + ') -> Mini');
     llmFrageMiniGeprueft(frage, cb);
-  }, 'Du fasst Telefonate sachlich auf Deutsch zusammen.');
+  }, 'Du fasst Telefonate sachlich auf Deutsch zusammen.', key);
 }
 function llmFrageMiniGeprueft(frage, cb) {
   llmFrageMini(frage, (e, t) => {
@@ -233,12 +250,12 @@ process.on('uncaughtException', e => console.log('[uncaught]', e.message));
 // ---------- Telegram an Kay nach jedem echten Anruf (Hermes-Bot) ----------
 const TG_ENV = process.env.CALLAGENT_TG_ENV || '/opt/callagent/telegram.env';
 const TG_CHAT = process.env.CALLAGENT_TG_CHAT || '805026354';
-function anrufMeldung(nummer, sum, dbId) {
+function anrufMeldung(nummer, sum, dbId, link) {
   const nr = String(nummer || '').trim() || 'unterdrückt';
   return '📞 Gemma hat einen Anruf angenommen\n' +
     'Von: ' + nr + '\n\n' + sum + '\n\n' +
     (/^\+?\d{4,}$/.test(nr) ? 'Zurückrufen: tel:' + nr + '\n' : '') +
-    'Protokoll #' + dbId + ': https://callagent.gemivo.de/log';
+    'Protokoll #' + dbId + ' + Bewerten (👍/👎): ' + (link || 'https://anruf.gemivo.de/app?anruf=' + dbId);
 }
 function telegramMelden(text) {
   const m = safeRead(TG_ENV).match(/^TELEGRAM_BOT_TOKEN=["']?([^"'\n]+)/m);
@@ -253,21 +270,28 @@ function telegramMelden(text) {
 }
 
 // Prompt fuer Gemini Live (Sprache rein/raus). "Kai" geschrieben, damit die Stimme es deutsch ausspricht.
-function livePrompt(begr) {
-  return ausspracheText(SYSTEM_PROMPT
+function livePrompt(begr, m) {
+  const name = (m && m.vorname) || 'Kay', ausspr = m && m.vorname ? (m.aussprache || '') : 'Kai';
+  return ausspracheText(systemPrompt(name)
     .replace(/Haengt an jede Abschluss-Antwort "GEMMA_ENDE" an \(danach wird aufgelegt\)\./,
       'Nach deiner Abschluss-Antwort rufst du das Werkzeug "auflegen" auf (danach wird aufgelegt). Sonst nie.')
-    .replace(/Deine Antwort wird vorgelesen:[^`]*$/, 'Du sprichst am Telefon: kurz, natuerlich, in normalem Gespraechstempo.')) +
-    '\nDu bist am Telefon. Ganz am Anfang sagst du genau diese Begruessung: "' + ausspracheText(begr) + '"';
+    .replace(/Deine Antwort wird vorgelesen:[^`]*$/, 'Du sprichst am Telefon: kurz, natuerlich, in normalem Gespraechstempo.'), name, ausspr) +
+    '\nDu bist am Telefon. Ganz am Anfang sagst du genau diese Begruessung: "' + ausspracheText(begr, name, ausspr) + '"';
 }
 
-function begruessungsText(nummer) {
-  return 'Schönen guten Tag, hier spricht Gemma, die Assistentin von Kay. ' +
-    'Kay ist gerade leider nicht erreichbar - kann ich etwas für Sie aufnehmen?';
+function begruessungsText(nummer, m) {
+  if (!m || m.owner || !m.vorname) {
+    return 'Schönen guten Tag, hier spricht Gemma, die Assistentin von Kay. ' +
+      'Kay ist gerade leider nicht erreichbar - kann ich etwas für Sie aufnehmen?';
+  }
+  // Produkt-Standard: Anrufer erfaehrt sofort, dass eine KI spricht
+  const n = m.vorname;
+  return 'Schönen guten Tag, hier spricht Gemma, die digitale Assistentin von ' + n + '. ' +
+    n + ' ist gerade leider nicht erreichbar - kann ich etwas für Sie aufnehmen?';
 }
 
-function protokollNeu(nummer, cb) {
-  const sql = `INSERT INTO calls(nummer,start,transkript) VALUES(${esc(nummer)},${esc(new Date().toISOString())},'[]'); SELECT last_insert_rowid();`;
+function protokollNeu(nummer, uid, cb) {
+  const sql = `INSERT INTO calls(nummer,start,transkript,user_id) VALUES(${esc(nummer)},${esc(new Date().toISOString())},'[]',${parseInt(uid, 10) || mandant.OWNER_UID}); SELECT last_insert_rowid();`;
   dbRunSafe(sql, (e, out) => cb((out || '').trim()));
 }
 function protokollAppend(dbId, ich, text, cb) {
@@ -281,7 +305,7 @@ function protokollAppend(dbId, ich, text, cb) {
 function protokollEnde(dbId, grund, cb) {
   dbRunSafe(`UPDATE calls SET ende=${esc(new Date().toISOString())}, grund=${esc(grund || '')} WHERE id=${dbId};`, () => cb && cb());
 }
-function zusammenfassung(dbId, cb) {
+function zusammenfassung(dbId, cb, key, owner) {
   const lese = `SELECT transkript FROM calls WHERE id=${dbId};`;
   dbRunSafe(lese, (e, out) => {
     let arr = []; try { arr = JSON.parse(out || '[]'); } catch (x) {}
@@ -289,8 +313,37 @@ function zusammenfassung(dbId, cb) {
     if (!dial) return cb(null, 'kein Inhalt');
     // Anrufer hat nichts gesagt -> nichts erfinden lassen (Mini halluzinierte sonst ganze Geschichten)
     if (!arr.some(m => !m.ich)) return cb(null, 'Anrufer hat nichts gesagt (nur Begrüßung von Gemma).');
-    llmFrage('Fasse dieses Telefonat knapp in 2-3 Saetzen auf Deutsch zusammen. Nenne Name/Firma/Anliegen und ob ein Rueckruf noetig ist, soweit genannt. Erfinde NICHTS, was nicht im Gespraech steht. Die Anrufer-Zeilen stammen aus automatischer Spracherkennung: offensichtlich falsch erkannte oder anstoessige Woerter nicht uebernehmen, sondern als (unklar) kennzeichnen:\n' + dial, (e, t) => { if (e) console.log('[zusammenfassung] LLM-Fehler:', e.message); if (t && typeof t === 'string' && t.trim()) return cb(null, t.trim()); cb(null, 'keine Zusammenfassung'); });
+    llmFrage('Fasse dieses Telefonat knapp in 2-3 Saetzen auf Deutsch zusammen. Nenne Name/Firma/Anliegen und ob ein Rueckruf noetig ist, soweit genannt. Erfinde NICHTS, was nicht im Gespraech steht. Die Anrufer-Zeilen stammen aus automatischer Spracherkennung: offensichtlich falsch erkannte oder anstoessige Woerter nicht uebernehmen, sondern als (unklar) kennzeichnen:\n' + dial, (e, t) => { if (e) console.log('[zusammenfassung] LLM-Fehler:', e.message); if (t && typeof t === 'string' && t.trim()) return cb(null, t.trim()); cb(null, 'keine Zusammenfassung'); }, key, owner);
   });
+}
+
+// ---------- Benachrichtigung fremder Mandanten ueber die Web-App (anruf.gemivo.de) ----------
+const WEB_INTERN = process.env.ANRUF_WEB_INTERN || 'http://127.0.0.1:3124';
+function webMelden(uid, dbId, nummer, sum) {
+  const data = JSON.stringify({ userId: uid, callId: parseInt(dbId, 10), nummer, zusammenfassung: sum });
+  const u2 = new URL(WEB_INTERN + '/api/intern/benachrichtigen');
+  const rq = http.request({ hostname: u2.hostname, port: u2.port, path: u2.pathname, method: 'POST', timeout: 20000,
+    headers: { 'Content-Type': 'application/json', 'X-Intern-Token': APP_TOKEN, 'Content-Length': Buffer.byteLength(data) } },
+    r => { console.log('[web-melden] uid=' + uid + ' status ' + r.statusCode); r.resume(); });
+  rq.on('error', e => console.log('[web-melden] fehler ' + e.message));
+  rq.on('timeout', () => rq.destroy(new Error('timeout')));
+  rq.end(data);
+}
+// Abo/Testphase pruefen (Web-App entscheidet zentral: Owner frei, 14 Tage Test, danach gemivo-Abo)
+function zugangPruefen(m, cb) {
+  if (!m || m.owner) return cb(true);
+  const u2 = new URL(WEB_INTERN + '/api/intern/zugang?uid=' + parseInt(m.user_id, 10));
+  let fertig = false; const ende = v => { if (!fertig) { fertig = true; cb(v); } };
+  const rq = http.request({ hostname: u2.hostname, port: u2.port, path: u2.pathname + u2.search, method: 'GET', timeout: 4000,
+    headers: { 'X-Intern-Token': APP_TOKEN } }, r => {
+    const ch = []; r.on('data', d => ch.push(d)); r.on('end', () => {
+      try { ende(!!JSON.parse(Buffer.concat(ch).toString()).aktiv); } catch (e) { ende(false); }
+    });
+  });
+  // Web-App nicht erreichbar: lieber annehmen als Kunden im Test/Abo still abweisen (fail-open, geloggt)
+  rq.on('error', e => { console.log('[zugang] Web-App weg (' + e.message + ') -> fail-open'); ende(true); });
+  rq.on('timeout', () => rq.destroy(new Error('timeout')));
+  rq.end();
 }
 
 // ---------- HTTP-Router ----------
@@ -309,30 +362,49 @@ const server = http.createServer((req, res) => {
 
   if (u.pathname === '/api/start' && req.method === 'POST') {
     leseBody(req, body => {
-      const id = 'c' + Date.now() + '-' + (++sid);
-      const s = { nummer: body.nummer || 'unbekannt', start: new Date(), historie: [], letzteAktiv: Date.now() };
-      SESSIONS.set(id, s);
-      protokollNeu(s.nummer, dbId => { s.dbId = dbId; });
-      const begr = begruessungsText(s.nummer);
-      if (body.live) {
-        // Live-Modus (Gemini Live in der SIP-Bruecke): kein TTS hier, Bruecke spricht selbst
-        // und meldet das Transkript per /api/notiz
-        return json(res, 200, { ok: true, session: id, begruessung_text: begr, prompt: livePrompt(begr) });
-      }
-      geminiTTS(begr, (e, b64) => {
-        if (e) { console.log('[tts] Start fehlgeschlagen', e.message); return json(res, 500, { ok: false, fehler: 'tts ' + e.message }); }
-        s.historie.push({ ich: true, text: begr });
-        const merke = () => s.dbId ? protokollAppend(s.dbId, true, begr) : setTimeout(merke, 200);
-        merke();
-        json(res, 200, { ok: true, session: id, begruessung_text: begr, audio_b64: b64 });
+      // Mandant: kommt vom Dialplan (PJSIP set_var CA_TENANT); leer = Kays Altanschluss/Selbsttest
+      const uid = parseInt(body.tenant, 10) || mandant.OWNER_UID;
+      mandant.laden(uid, m => {
+        if (!m && uid === mandant.OWNER_UID) m = { user_id: uid, owner: 1, aktiv: 1, vorname: 'Kay', aussprache: 'Kai', gemini_status: 'ok', limit_monat: 0 };
+        mandant.monatsZahl(uid, n => {
+          zugangPruefen(m, zugangOk => {
+            const f = zugangOk ? mandant.anrufFreigabe(m, n, KEY_PAID) : { ok: false, grund: 'abo' };
+            if (!f.ok) {
+              console.log('[start] Mandant ' + uid + ' abgelehnt: ' + f.grund);
+              return json(res, 200, { ok: true, ablehnen: true, grund: f.grund });
+            }
+            const id = 'c' + Date.now() + '-' + (++sid);
+            const s = { nummer: body.nummer || 'unbekannt', start: new Date(), historie: [], letzteAktiv: Date.now(), uid, owner: f.owner, key: f.key, m };
+            SESSIONS.set(id, s);
+            protokollNeu(s.nummer, uid, dbId => { s.dbId = dbId; });
+            const begr = begruessungsText(s.nummer, m);
+            if (body.live) {
+              // Live-Modus (Gemini Live in der SIP-Bruecke): kein TTS hier, Bruecke spricht selbst
+              // und meldet das Transkript per /api/notiz. Key des Mandanten (Owner: paid-Key-Datei).
+              return json(res, 200, { ok: true, session: id, begruessung_text: begr, prompt: livePrompt(begr, f.owner ? null : m),
+                gemini_key: f.owner ? undefined : f.key, fallback_erlaubt: !!f.owner });
+            }
+            // Klassischer Weg (Vosk/Mini/TTS ueber Kays Infrastruktur) nur fuer den Owner
+            if (!f.owner) { SESSIONS.delete(id); return json(res, 200, { ok: true, ablehnen: true, grund: 'nur-live' }); }
+            geminiTTS(begr, (e, b64) => {
+              if (e) { console.log('[tts] Start fehlgeschlagen', e.message); return json(res, 500, { ok: false, fehler: 'tts ' + e.message }); }
+              s.historie.push({ ich: true, text: begr });
+              const merke = () => s.dbId ? protokollAppend(s.dbId, true, begr) : setTimeout(merke, 200);
+              merke();
+              json(res, 200, { ok: true, session: id, begruessung_text: begr, audio_b64: b64 });
+            });
+          });
+        });
       });
     });
   } else if (u.pathname === '/api/notiz' && req.method === 'POST') {
     leseBody(req, body => {
       const s = SESSIONS.get(body.session);
       if (!s) return json(res, 404, { ok: false, fehler: 'session' });
-      // Live-Transkript: "Kai" war nur fuer die Aussprache -> im Protokoll wieder "Kay"
-      const text = String(body.text || '').trim().replace(/\bKai(s?)\b/g, 'Kay$1');
+      // Live-Transkript: Aussprache-Schreibweise (z.B. "Kai") war nur fuer die Stimme -> im Protokoll echter Name
+      const nm = s.owner ? 'Kay' : ((s.m && s.m.vorname) || '');
+      const au = s.owner ? 'Kai' : ((s.m && s.m.aussprache) || '');
+      const text = protokollText(String(body.text || '').trim(), nm || 'Kay', nm ? au : '');
       if (!text) return json(res, 200, { ok: true });
       s.letzteAktiv = Date.now();
       s.historie.push({ ich: !!body.ich, text });
@@ -369,22 +441,29 @@ const server = http.createServer((req, res) => {
       protokollEnde(s.dbId, body.grund || 'aufgelegt', () => {
         zusammenfassung(s.dbId, (err, sum) => {
           if (!sum || typeof sum !== 'string') sum = 'keine Zusammenfassung';
-          console.log('[end] Zusammenfassung db=' + s.dbId + ':', sum.slice(0, 80));
-          dbRunSafe(`UPDATE calls SET zusammenfassung=${esc(sum)} WHERE id=${s.dbId};`);
+          console.log('[end] Zusammenfassung db=' + s.dbId + ' uid=' + s.uid + ':', sum.slice(0, 80));
+          dbRunSafe(`UPDATE calls SET zusammenfassung=${esc(sum)} WHERE id=${parseInt(s.dbId, 10)};`);
           if (!/^test|handshake/.test(String(s.nummer || '')) && body.grund !== 'test') {
-            telegramMelden(anrufMeldung(s.nummer, sum, s.dbId));
+            if (s.owner) telegramMelden(anrufMeldung(s.nummer, sum, s.dbId));
+            else webMelden(s.uid, s.dbId, s.nummer, sum); // E-Mail/Push/Telegram NUR an diesen Nutzer (Web-App)
           }
           SESSIONS.delete(body.session);
           json(res, 200, { ok: true, zusammenfassung: sum });
-        });
+        }, s.key, s.owner);
       });
     });
+  } else if (u.pathname === '/api/intern/pjsip-sync' && req.method === 'POST') {
+    mandant.pjsipSync((e, r) => json(res, e ? 500 : 200, Object.assign({ ok: !e, fehler: e ? e.message : undefined }, r || {})));
+  } else if (u.pathname === '/api/intern/reg-status' && req.method === 'GET') {
+    const uid = parseInt(u.searchParams.get('uid'), 10);
+    if (!uid) return json(res, 400, { ok: false });
+    mandant.laden(uid, m => mandant.regStatus(uid, !!(m && m.owner), st => json(res, 200, Object.assign({ ok: true }, st))));
   } else if (u.pathname === '/handshake') {
     // Test-Seite: Handy-Browser ruft /api/start und spielt Gemmas Begruessung ab
     const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>CallAgent Handshake</title><style>body{font-family:system-ui;background:#111;color:#fff;text-align:center;padding:2rem}button{font-size:1.3rem;padding:1rem 2rem;border-radius:12px;border:0;background:#2ecc71;color:#fff}#s{margin-top:1.5rem;color:#aaa}</style></head><body><h1>📞 CallAgent Handshake</h1><p id="s">Tippen, dann spricht Gemma (Kore) vom Server.</p><button onclick="los()">🤖 Gemma sagt Hallo</button><script>const T=new URLSearchParams(location.search).get('token');async function los(){document.getElementById('s').textContent='Verbinde mit callagent.gemivo.de ...';try{const r=await fetch('/api/start',{method:'POST',headers:{'Content-Type':'application/json','X-App-Token':T},body:JSON.stringify({nummer:'handshake-browser'})});const j=await r.json();if(!j.ok)throw new Error(j.fehler||'Server-No');const b=atob(j.audio_b64);const buf=new Uint8Array(b.length);for(let i=0;i<b.length;i++)buf[i]=b.charCodeAt(i);const ctx=new (window.AudioContext||window.webkitAudioContext)();await ctx.resume();const ab=await ctx.decodeAudioData(buf.buffer);const src=ctx.createBufferSource();src.buffer=ab;src.connect(ctx.destination);src.start();document.getElementById('s').textContent='\u2705 Handshake OK: '+(j.beguessung_text||j.begruessung_text||'').slice(0,60);}catch(e){document.getElementById('s').textContent='\u274c FEHLER: '+e.message;}}</script></body></html>`;
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); res.end(html);
   } else if (u.pathname === '/log') {
-    dbRunSafe('SELECT id,nummer,start,ende,grund,zusammenfassung FROM calls ORDER BY id DESC LIMIT 50;', (e, out) => {
+    dbRunSafe('SELECT id,nummer,start,ende,grund,zusammenfassung FROM calls WHERE user_id=' + mandant.OWNER_UID + ' OR user_id IS NULL ORDER BY id DESC LIMIT 50;', (e, out) => {
       let html = '<html><head><meta charset="utf-8"><title>CallAgent-Protokoll</title></head><body style="font-family:system-ui;max-width:860px;margin:2rem auto"><h1>📞 CallAgent-Protokoll</h1>';
       (out || '').split('\n').filter(Boolean).forEach(zeile => {
         const z = zeile.split('|');
@@ -397,7 +476,7 @@ const server = http.createServer((req, res) => {
   } else if (u.pathname.startsWith('/log/') && req.method === 'GET') {
     const id = parseInt(u.pathname.split('/')[2], 10);
     if (!id) return json(res, 400, { ok: false });
-    dbRunSafe(`SELECT transkript FROM calls WHERE id=${id};`, (e, out) => {
+    dbRunSafe(`SELECT transkript FROM calls WHERE id=${id} AND (user_id=${mandant.OWNER_UID} OR user_id IS NULL);`, (e, out) => {
       let arr = []; try { arr = JSON.parse((out || '').replace(/^"|"$/g, '').replace(/""/g, '"')); } catch (x) {}
       let html = '<html><head><meta charset="utf-8"></head><body style="font-family:system-ui;max-width:860px;margin:2rem auto"><h1>Transkript Anruf #' + id + '</h1>';
       arr.forEach(m => { html += `<p><b>${m.ich ? '🤖 Gemma' : '👤 Anrufer'}:</b> ${m.text.replace(/</g, '&lt;')}</p>`; });
@@ -413,5 +492,5 @@ if (require.main === module) {
 }
 
 // Unit-Test-Exporte
-module.exports = { wavHeader, esc, begruessungsText, ausspracheText, anrufMeldung, livePrompt, safeRead, denglisch, wiederholt, zusammenfassung };
+module.exports = { wavHeader, esc, begruessungsText, ausspracheText, protokollText, systemPrompt, SYSTEM_PROMPT, anrufMeldung, livePrompt, safeRead, denglisch, wiederholt, zusammenfassung };
 

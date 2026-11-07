@@ -1,0 +1,29 @@
+{
+  "name": "gemivo-anruf",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3124",
+    "build": "prisma generate && next build && node scripts/postbuild.mjs",
+    "start": "node .next/standalone/server.js",
+    "test": "vitest run",
+    "e2e": "node tests/e2e/run.mjs"
+  },
+  "dependencies": {
+    "@prisma/client": "6.11.1",
+    "next": "16.1.1",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "web-push": "3.6.7"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "4.1.11",
+    "@types/node": "22.15.3",
+    "@types/react": "19.2.2",
+    "@types/web-push": "3.6.4",
+    "prisma": "6.11.1",
+    "tailwindcss": "4.1.11",
+    "typescript": "5.8.3",
+    "vitest": "3.2.4"
+  }
+}

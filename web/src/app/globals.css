@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #f6f5f1; --fl: #ffffff; --fl2: #efede6; --tx: #1b1d1f; --tx2: #5b6067; --rand: #dedbd2;
+  --ak: #0f766e; --ak-tx: #ffffff; --ak-weich: #d6efe9; --ok: #15803d; --warn: #b45309; --fehl: #b91c1c;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111413; --fl: #1a1e1d; --fl2: #232826; --tx: #ecefed; --tx2: #a3aaa7; --rand: #2e3532;
+    --ak: #2dd4bf; --ak-tx: #06201c; --ak-weich: #123a35; --ok: #4ade80; --warn: #fbbf24; --fehl: #f87171;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111413; --fl: #1a1e1d; --fl2: #232826; --tx: #ecefed; --tx2: #a3aaa7; --rand: #2e3532;
+  --ak: #2dd4bf; --ak-tx: #06201c; --ak-weich: #123a35; --ok: #4ade80; --warn: #fbbf24; --fehl: #f87171;
+}
+@theme inline {
+  --color-bg: var(--bg); --color-fl: var(--fl); --color-fl2: var(--fl2); --color-tx: var(--tx); --color-tx2: var(--tx2);
+  --color-rand: var(--rand); --color-ak: var(--ak); --color-ak-tx: var(--ak-tx); --color-ak-weich: var(--ak-weich);
+  --color-ok: var(--ok); --color-warn: var(--warn); --color-fehl: var(--fehl);
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+html, body { background: var(--bg); color: var(--tx); }
+body { -webkit-text-size-adjust: 100%; overflow-x: hidden; }
+a { color: var(--ak); }
+.karte { background: var(--fl); border: 1px solid var(--rand); border-radius: 14px; }
+.eingabe { width: 100%; min-height: 44px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--rand); background: var(--fl); color: var(--tx); font-size: 16px; }
+.eingabe:focus { outline: 2px solid var(--ak); outline-offset: 1px; }
+.knopf { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 10px 16px; border-radius: 10px; font-weight: 600; background: var(--ak); color: var(--ak-tx); border: 0; cursor: pointer; text-decoration: none; }
+.knopf:disabled { opacity: .5; cursor: default; }
+.knopf-2 { background: var(--fl2); color: var(--tx); border: 1px solid var(--rand); }
+.knopf-gefahr { background: transparent; color: var(--fehl); border: 1px solid var(--fehl); }
+code, .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+.anleitung h2 { font-size: 1.35rem; font-weight: 700; margin: 2rem 0 .6rem; scroll-margin-top: 70px; }
+.anleitung h3 { font-size: 1.05rem; font-weight: 700; margin: 1.2rem 0 .4rem; }
+.anleitung p, .anleitung li { line-height: 1.6; color: var(--tx); }
+.anleitung ol { list-style: decimal; padding-left: 1.3rem; } .anleitung ul { list-style: disc; padding-left: 1.3rem; }
+.anleitung li { margin: .3rem 0; }
+.menue { font-family: ui-monospace, Menlo, monospace; font-size: .9em; background: var(--fl2); border: 1px solid var(--rand); border-radius: 6px; padding: 1px 6px; white-space: normal; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }

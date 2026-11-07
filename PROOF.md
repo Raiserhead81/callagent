@@ -70,3 +70,13 @@ Ende (sip-aufgelegt): Zusammenfassung in calls.db #23
 ```
 Sichtprüfung: `/log` listet #20 bis #23 mit Grund `sip-*` (per curl geprüft). Unit-Tests 5/5 PASS, `node --check` und `ast.parse` OK.
 Bekannte Fehler aus dem Test sind behoben: Vosk braucht 16 kHz (vorher Absturz bei 8 kHz), das Anrufer-Verzeichnis gehört jetzt `asterisk`, und bei Paketpausen wird Stille nachgeschoben, damit Vosk das Satzende erkennt.
+
+## Multi-Tenant-Produkt (07.11.2026) – Testbeweise
+- Engine-Unit `CALLAGENT_NO_DB=1 node --test server/test-unit.js`: 14/14 PASS (inkl. Owner-Prompt byte-gleich zur Vorversion, Mandanten-Begrüßung, AES-GCM, PJSIP-Generator, Freigabe/Limit).
+- Web vitest `cd web && npx vitest run`: 14/14 PASS (Umleitungscode, SIP-Validierung/Injection, SSO, Krypto Engine-kompatibel, Paywall aus).
+- Playwright E2E auf gemivo `node /opt/gemivo-anruf/tests/e2e/run.mjs`: ERGEBNIS ALLE PASS (51 Checks: öffentlich/Login-Redirect, intern 404, Mandantentrennung A/B (sehen/löschen/bewerten fremder Anrufe = 404), Feedback, Funnel, Kopplung Code->Token, Admin 403, Datenlöschung, kein H-Overflow 360/390). Testdaten (uid 990000-999999) danach gelöscht.
+- SIP-Mandanten-Selbsttest `sip/selbsttest-mandant.sh`: Testmandant 990003 registriert über transport-m4 (Registered), Anruf -> user_id=990003, Begrüßung „digitale Assistentin von Jörg“, kein „Kay“, Benachrichtigung über Web (status 200); Kay `anbieter-reg` blieb Registered.
+- Kays Selbsttest `sip/selbsttest.sh` nach Umbau: Anruf #49 user_id=8, Begrüßung unverändert, Zusammenfassung ok.
+- Gemini-Key-Test über API mit echtem Key: Live-Connect ok in 553 ms; ungültiger Key -> „Der Schlüssel ist ungültig“.
+- Android 2.0-assistent im Emulator: Kopplung per Deep-Link, Gemini-Fehlerdialog, Rolle CALL_SCREENING/Kontakte/Akku grün, Funnel-Meldungen, Feedback mit Screenshot gespeichert.
+- Screenshots (selbst gerendert, Playwright 390px + Emulator): docs/screenshots/*.png

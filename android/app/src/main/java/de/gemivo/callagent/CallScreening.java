@@ -8,7 +8,7 @@ import android.telecom.CallScreeningService;
  * - Nummer im Adressbuch (oder KI aus, oder ausgehend) -> normal klingeln lassen
  * - Nummer NICHT im Adressbuch / unterdrueckt -> Anruf ABLEHNEN.
  *   Das Netz wertet das als "besetzt" und leitet per Rufumleitung bei besetzt
- *   (**67*+4945130433056#) auf die FritzBox-Nummer -> Gemma am Server (SIP).
+ *   (**67*<eigene Gemma-Nummer>#) auf die FritzBox-/SIP-Nummer -> Gemma am Server (SIP, je Nutzer).
  * Grund: Android laesst Fremd-Apps im Mobilfunkanruf weder Mikro noch Einspeisen zu.
  */
 public class CallScreening extends CallScreeningService {

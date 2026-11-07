@@ -62,3 +62,59 @@ test('denglisch: Fremdschrift (chinesisch) wird erkannt, Umlaute/Euro nicht', ()
   assert.equal(denglisch('dass Kay您 zurückrufen soll'), '您');
   assert.equal(denglisch('Schöne Grüße, das kostet 5 € – danke!'), '');
 });
+
+// ---------- Multi-Tenant (gemivo Anrufassistent) ----------
+const neu = require('./server.js');
+const ALT = process.env.CALLAGENT_ALT_SERVER; // Pfad zur Vorversion (git show HEAD~:server/server.js)
+test('Owner Kay: Prompt + Begruessung byte-gleich zur Einzelnutzer-Version', { skip: !ALT }, () => {
+  const alt = require(ALT);
+  assert.equal(neu.livePrompt(neu.begruessungsText('+49')), alt.livePrompt(alt.begruessungsText('+49')));
+  assert.equal(neu.begruessungsText('+49'), alt.begruessungsText('+49'));
+});
+test('Mandant: eigener Name + KI-Hinweis + Aussprache nur fuer die Stimme', () => {
+  const m = { user_id: 990001, owner: 0, vorname: 'Jörg', aussprache: 'Jörk' };
+  const b = neu.begruessungsText('+49', m);
+  assert.match(b, /digitale Assistentin von Jörg/);
+  assert.doesNotMatch(b, /Kay/);
+  const p = neu.livePrompt(b, m);
+  assert.doesNotMatch(p, /\bKay\b|\bKai\b/);
+  assert.match(p, /Jörk/);
+  assert.equal(neu.protokollText('Ich sage es Jörk', 'Jörg', 'Jörk'), 'Ich sage es Jörg');
+  assert.equal(neu.ausspracheText('Anna', 'Anna', ''), 'Anna');
+});
+
+const M = require('./mandant.js');
+M._setKey('11'.repeat(32));
+test('mandant: AES-GCM rund + manipuliert -> Fehler', () => {
+  const e = M.verschluesseln('geheim;pass');
+  assert.match(e, /^v1:/); assert.equal(M.entschluesseln(e), 'geheim;pass');
+  const kaputt = 'v1:' + Buffer.from(Buffer.from(e.slice(3), 'base64').map((b, i) => i === 30 ? b ^ 1 : b)).toString('base64');
+  assert.throws(() => M.entschluesseln(kaputt));
+});
+test('mandant: Freigabe Owner/Key/Limit/inaktiv', () => {
+  const key = M.verschluesseln('AIzaTEST');
+  assert.deepEqual(M.anrufFreigabe({ owner: 1, aktiv: 1 }, 9999, 'PAID'), { ok: true, key: 'PAID', owner: true });
+  assert.equal(M.anrufFreigabe({ owner: 0, aktiv: 1, gemini_key_enc: key, gemini_status: 'ok', limit_monat: 300, vorname: 'Anna' }, 5).key, 'AIzaTEST');
+  assert.equal(M.anrufFreigabe({ owner: 0, aktiv: 1, gemini_key_enc: key, gemini_status: 'ok', limit_monat: 3, vorname: 'Anna' }, 3).grund, 'limit');
+  assert.equal(M.anrufFreigabe({ owner: 0, aktiv: 1, gemini_key_enc: key, gemini_status: 'ok', limit_monat: 3 }, 0).grund, 'kein-name');
+  assert.equal(M.anrufFreigabe({ owner: 0, aktiv: 1, gemini_key_enc: key, gemini_status: 'fehler' }, 0).grund, 'kein-key');
+  assert.equal(M.anrufFreigabe({ owner: 0, aktiv: 0 }, 0).grund, 'inaktiv');
+  assert.equal(M.anrufFreigabe(null, 0).grund, 'unbekannt');
+});
+test('mandant: PJSIP-Text je Mandant, set_var Tenant, Semikolon escaped, IPv6', () => {
+  const t = M.pjsipText([
+    { m: { user_id: 990001, sip_modus: 'fritzbox', sip_server: 'abc.myfritz.net', sip_user: 'gemma', sip_port: 5060 }, pass: 'a;b', ipv: 'v6' },
+    { m: { user_id: 990002, sip_modus: 'anbieter', sip_server: 'sipgate.de', sip_user: '1234567e0', sip_port: 5060 }, pass: 'x', ipv: 'v4' }]);
+  assert.match(t, /\[m990001-reg\][^[]*transport=transport-m6/);
+  assert.match(t, /set_var=CA_TENANT=990001/); assert.match(t, /set_var=CA_TENANT=990002/);
+  assert.ok(t.includes('password=a\\;b')); assert.match(t, /rtp_ipv6=yes/);
+  assert.match(t, /client_uri=sip:1234567e0@sipgate.de/);
+  assert.doesNotMatch(t, /\[anbieter/); // Kays Altanschluss wird hier nie erzeugt
+  assert.throws(() => M.confWert('a\nb'));
+});
+test('mandant: SIP-Eingaben pruefen + Owner nie konfigurierbar', () => {
+  assert.equal(M.pruefeSip({ sip_server: 'x.myfritz.net', sip_user: 'gemma', sip_port: 5060 }).length, 0);
+  assert.ok(M.pruefeSip({ sip_server: 'evil\n[x]', sip_user: 'a' }).length > 0);
+  assert.ok(M.pruefeSip({ sip_server: 'ok.de', sip_user: 'a b' }).length > 0);
+  assert.equal(M.istKonfigurierbar({ owner: 1, aktiv: 1, sip_modus: 'fritzbox', gemini_status: 'ok', sip_server: 'a.de', sip_user: 'u', sip_pass_enc: 'v1:x' }), false);
+});

@@ -1,0 +1,123 @@
+// Prisma-Client auf die gemeinsame CallAgent-DB (/opt/callagent/data/calls.db).
+// Tabellen legt die Engine (server/mandant.js) idempotent an - hier NIE `prisma db push`/`migrate`!
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Call {
+  id              Int     @id @default(autoincrement())
+  nummer          String?
+  start           String?
+  ende            String?
+  grund           String?
+  transkript      String?
+  zusammenfassung String?
+  userId          Int?    @map("user_id")
+
+  @@map("calls")
+}
+
+model Mandant {
+  userId        Int     @id @map("user_id")
+  email         String?
+  anzeigeName   String? @map("anzeige_name")
+  vorname       String?
+  aussprache    String?
+  sipModus      String  @default("aus") @map("sip_modus")
+  sipServer     String? @map("sip_server")
+  sipPort       Int     @default(5060) @map("sip_port")
+  sipUser       String? @map("sip_user")
+  sipAuthUser   String? @map("sip_auth_user")
+  sipPassEnc    String? @map("sip_pass_enc")
+  sipDomain     String? @map("sip_domain")
+  sipNummer     String? @map("sip_nummer")
+  sipIpv        String  @default("auto") @map("sip_ipv")
+  geminiKeyEnc  String? @map("gemini_key_enc")
+  geminiStatus  String  @default("fehlt") @map("gemini_status")
+  geminiGeprueft String? @map("gemini_geprueft")
+  geminiFehler  String? @map("gemini_fehler")
+  notifyEmail   Int     @default(1) @map("notify_email")
+  notifyPush    Int     @default(0) @map("notify_push")
+  tgChatId      String? @map("tg_chat_id")
+  aktiv         Int     @default(1)
+  limitMonat    Int     @default(300) @map("limit_monat")
+  owner         Int     @default(0)
+  erstellt      String?
+  geaendert     String?
+
+  @@map("ca_mandant")
+}
+
+model Geraet {
+  id        String  @id
+  userId    Int     @map("user_id")
+  tokenHash String  @unique @map("token_hash")
+  name      String?
+  erstellt  String?
+  zuletzt   String?
+
+  @@map("ca_geraet")
+}
+
+model Kopplung {
+  code   String @id
+  userId Int    @map("user_id")
+  ablauf String
+
+  @@map("ca_kopplung")
+}
+
+model TgLink {
+  token  String @id
+  userId Int    @map("user_id")
+  ablauf String
+
+  @@map("ca_tg_link")
+}
+
+model PushAbo {
+  id       String  @id
+  userId   Int     @map("user_id")
+  endpoint String  @unique
+  p256dh   String?
+  auth     String?
+  erstellt String?
+
+  @@map("ca_push")
+}
+
+model Feedback {
+  id         Int     @id @default(autoincrement())
+  userId     Int     @map("user_id")
+  art        String
+  kategorie  String?
+  sterne     Int?
+  daumen     Int?
+  text       String?
+  callId     Int?    @map("call_id")
+  appVersion String? @map("app_version")
+  geraet     String?
+  android    String?
+  schritt    String?
+  quelle     String?
+  screenshot String?
+  erstellt   String?
+
+  @@map("ca_feedback")
+}
+
+model Funnel {
+  id       Int     @id @default(autoincrement())
+  userId   Int     @map("user_id")
+  schritt  String
+  ereignis String
+  quelle   String?
+  erstellt String?
+
+  @@map("ca_funnel")
+}
