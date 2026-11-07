@@ -16,7 +16,7 @@ export interface Schritt {
   quelle?: string;
 }
 
-export const ANLEITUNG_VERSION = "2026-11-07d";
+export const ANLEITUNG_VERSION = "2026-11-07e";
 
 export const SCHRITTE: Schritt[] = [
   {
@@ -71,6 +71,7 @@ export const SCHRITTE: Schritt[] = [
         skizze: { titel: "FRITZ!Box › Telefoniegerät „Gemma“ (Skizze)", pfad: ["Telefonie", "Telefoniegeräte", "Gemma", "Anmeldedaten"], zeilen: [["Benutzername", "gemma"], ["Kennwort", "••••••••••••"], ["☑ Anmeldung aus dem Internet erlauben"], ["Ankommende Anrufe", "nur auf: deine Zweitnummer"]] } },
       { text: "Trage unten ein: Registrar = MyFRITZ!-Adresse, Port 5060, Benutzername, Kennwort, Rufnummer. Dann **„Speichern und verbinden“**." },
       { text: "**Weg B SIP-Anbieter:** Im Kundenportal ein SIP-/VoIP-Gerät anlegen und ihm die Nummer zuweisen. Registrar, SIP-ID und SIP-Kennwort von dort eintragen." },
+      { text: "Gut zu wissen für Weg B: Der Server lässt nur die Adresse deines Registrars durch. Bei **sipgate** sind die laut sipgate-Hilfe genutzten Netze automatisch freigeschaltet. Ruft dein Anbieter von anderen Adressen an und kommen Anrufe nicht an, schreib uns über „Feedback“ den Anbieter-Namen." },
     ],
     hilfe: {
       "nicht-konfiguriert": "Gemma ist noch nicht aktiv: erst Gemini-Schlüssel (grün) und Name speichern.",
@@ -160,11 +161,11 @@ export const HINWEISE: Hinweis[] = [
   { id: "verhoeren", titel: "Die KI kann sich verhören", schritte: ["test"],
     text: "Namen und Firmen werden manchmal falsch verstanden. Transkript und Zusammenfassung entstehen automatisch und sind nicht wörtlich garantiert. Im Zweifel zurückrufen." },
   { id: "erreichbar", titel: "Wenn Gemma nicht erreichbar ist", schritte: ["anschluss"],
-    text: "Ändert sich die Internet-Adresse deiner FRITZ!Box (z. B. nächtliche Zwangstrennung), meldet sich Gemma automatisch neu an; das kann **einige Minuten** dauern. Ist der gemivo-Server nicht angemeldet, kann Gemma nicht abnehmen – was der Anrufer dann hört (z. B. besetzt), entscheidet deine FRITZ!Box bzw. dein Anbieter. Ist Google gestört oder dein Guthaben leer, hört der Anrufer eine kurze Ansage, dass die Assistentin gerade nicht verfügbar ist, und du bekommst einen Hinweis zum Zurückrufen." },
+    text: "Der gemivo-Server lässt nur die Adressen eingetragener Boxen und Anbieter auf seinen Telefon-Port. Ändert sich die Internet-Adresse deiner FRITZ!Box (z. B. nächtliche Zwangstrennung), wird die neue Adresse automatisch nachgetragen – das kann **bis zu 5 Minuten** dauern; so lange kann Gemma nicht abnehmen. Was der Anrufer dann hört (z. B. besetzt), entscheidet deine FRITZ!Box bzw. dein Anbieter. Ist Google gestört oder dein Guthaben leer, hört der Anrufer eine kurze Ansage, dass die Assistentin gerade nicht verfügbar ist, und du bekommst einen Hinweis zum Zurückrufen." },
   { id: "datenschutz", titel: "Datenschutz", schritte: ["name"],
     text: "Anrufer hören zu Beginn, dass eine **digitale Assistentin** spricht. Transkripte und Zusammenfassungen werden gespeichert, bis du sie löschst. Das Gesprächsaudio verarbeitet Google (Gemini) über deinen Schlüssel; Tonaufnahmen speichern wir nicht." },
   { id: "sicherheit", titel: "Sicherheit", schritte: ["anschluss"],
-    text: "Gib dem IP-Telefon „Gemma“ in der FRITZ!Box ein **langes Zufallskennwort**; Gemma meldet sich nur damit an. Dein Kennwort und dein Gemini-Schlüssel liegen verschlüsselt auf dem gemivo-Server. Der Server nimmt Anrufe nur über angemeldete Anschlüsse an, nicht anonym." },
+    text: "Gib dem IP-Telefon „Gemma“ in der FRITZ!Box ein **langes Zufallskennwort**; Gemma meldet sich nur damit an. Auf den Telefon-Port des gemivo-Servers kommen nur eingetragene Boxen und Anbieter, anonyme Anrufe nimmt er nicht an. Wer sich **3-mal** mit falschen Daten anmeldet, wird für **24 Stunden** gesperrt. Dein Kennwort und dein Gemini-Schlüssel liegen verschlüsselt auf dem Server." },
   { id: "aus", titel: "Jederzeit ausschalten", schritte: ["umleitung"],
     text: "Umleitung aus mit `##67#` oder in der App den Schalter „Gemma nimmt unbekannte Anrufe an“ ausschalten – dann klingeln alle Anrufe wieder normal." },
 ];

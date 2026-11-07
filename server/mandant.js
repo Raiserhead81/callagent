@@ -214,6 +214,48 @@ function ipVersion(m, cb) {
   });
 }
 
+// Belegte Anbieter-Netze (Anrufe kommen teils von anderen Adressen als der Registrar-Name).
+// Quelle sipgate: help.sipgate.de "Was sind die IP- und Port-Bereiche von sipgate" (Stand Nov. 2026).
+const ANBIETER_NETZE = [
+  { name: 'sipgate', domain: /(^|\.)sipgate\.(de|co\.uk)$/i,
+    netze: ['217.10.64.0/20', '217.116.112.0/20', '212.9.32.0/19', '2001:ab7:2000:3::/64', '2001:ab7:3000:2::/64'] },
+];
+function anbieterNetze(eintraege) {
+  const n = new Set();
+  for (const { m } of eintraege) {
+    const hosts = [m.sip_server, m.sip_domain].filter(Boolean).map(h => String(h).replace(/^\[|\]$/g, ''));
+    for (const a of ANBIETER_NETZE) if (hosts.some(h => a.domain.test(h))) a.netze.forEach(x => n.add(x));
+  }
+  return [...n].sort();
+}
+const EXTRA = process.env.ANRUF_ALLOWLIST_EXTRA || '/etc/asterisk/sip-allowlist-extra';
+const AUTO_START = '# --- automatisch (callagent/mandant.js, Anbieter-Netze) - nicht von Hand aendern ---';
+const AUTO_ENDE = '# --- ende automatisch ---';
+/** Manuelle Zeilen bleiben, nur der automatische Block wird ersetzt (rein, testbar). */
+function extraText(alt, netze) {
+  const zeilen = String(alt || '').split('\n');
+  const out = []; let drin = false;
+  for (const z of zeilen) {
+    if (z === AUTO_START) { drin = true; continue; }
+    if (z === AUTO_ENDE) { drin = false; continue; }
+    if (!drin) out.push(z);
+  }
+  while (out.length && out[out.length - 1] === '') out.pop();
+  if (netze.length) out.push(AUTO_START, ...netze, AUTO_ENDE);
+  return out.length ? out.join('\n') + '\n' : '';
+}
+const ALLOWLIST = process.env.ANRUF_ALLOWLIST_BIN || '/usr/local/sbin/sip-allowlist';
+/** Firewall-Allowlist sofort nachziehen (sonst wartet ein neuer Nutzer bis zu 5 Min auf den Cron). */
+function allowlistNachziehen(eintraege, cb) {
+  try {
+    let alt = ''; try { alt = fs.readFileSync(EXTRA, 'utf8'); } catch (e) {}
+    const neu = extraText(alt, anbieterNetze(eintraege));
+    if (neu !== alt && (neu || alt)) fs.writeFileSync(EXTRA, neu, { mode: 0o644 });
+  } catch (e) { console.log('[allowlist] extra:', e.message); }
+  if (!fs.existsSync(ALLOWLIST)) return cb && cb();
+  execFile(ALLOWLIST, [], { timeout: 60000 }, (e) => { if (e) console.log('[allowlist] Fehler:', e.message); cb && cb(); });
+}
+
 const ZIEL = process.env.ANRUF_PJSIP_DATEI || '/etc/asterisk/pjsip_mandanten.conf';
 let syncLaeuft = Promise.resolve();
 /** Konfig aus DB neu schreiben + PJSIP neu laden (laufende Anrufe bleiben bestehen). Serialisiert. */
@@ -234,8 +276,8 @@ function pjsipSync(cb) {
         try { fs.chownSync(tmp, 0, asteriskGid()); } catch (e) {}
         fs.renameSync(tmp, ZIEL);
         execFile('asterisk', ['-rx', 'module reload res_pjsip.so'], (e) => {
-          fertig();
-          cb && cb(e, { geaendert: true, mandanten: out.length });
+          // Firewall sofort oeffnen/schliessen (nur fuer eingetragene Boxen/Anbieter), dann melden
+          allowlistNachziehen(out, () => { fertig(); cb && cb(e, { geaendert: true, mandanten: out.length }); });
         });
       };
       if (!offen) return weiter();
@@ -265,5 +307,5 @@ function regStatus(uid, owner, cb) {
 
 module.exports = {
   OWNER_UID, SCHEMA, migrieren, verschluesseln, entschluesseln, laden, alle, monatsZahl, anrufFreigabe,
-  pruefeSip, pjsipText, istKonfigurierbar, pjsipSync, regStatus, confWert, esc, _setKey(hex) { _key = hex ? Buffer.from(hex, 'hex') : null; }
+  pruefeSip, pjsipText, anbieterNetze, extraText, istKonfigurierbar, pjsipSync, regStatus, confWert, esc, _setKey(hex) { _key = hex ? Buffer.from(hex, 'hex') : null; }
 };

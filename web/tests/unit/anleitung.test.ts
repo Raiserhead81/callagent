@@ -20,8 +20,11 @@ describe("Gut zu wissen", () => {
     const schritte = new Set(SCHRITTE.map(s => s.id));
     for (const h of HINWEISE) for (const s of h.schritte) expect(schritte.has(s)).toBe(true);
   });
-  it("keine unbelegten Behauptungen (Firewall-Sperren/fail2ban sind NICHT gebaut)", () => {
+  it("Sicherheit/Erreichbarkeit passen zur Server-Konfig (sip-allowlist */5 Min, fail2ban 3 Versuche/24 h)", () => {
     const t = JSON.stringify(HINWEISE);
-    expect(t).not.toMatch(/automatisch gesperrt|nur eingetragene Boxen/);
+    expect(t).toMatch(/nur eingetragene Boxen/);
+    expect(t).toMatch(/3-mal.*24 Stunden/);
+    expect(t).toMatch(/bis zu 5 Minuten/);
+    expect(t).not.toMatch(/ufw allow 5070/);
   });
 });

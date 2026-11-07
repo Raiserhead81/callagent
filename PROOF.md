@@ -85,3 +85,9 @@ Bekannte Fehler aus dem Test sind behoben: Vosk braucht 16 kHz (vorher Absturz b
 - „Gut zu wissen: Was passieren kann“ (10 Punkte) in `web/src/lib/anleitung.ts` -> Web /anleitung#gut-zu-wissen + App (je Schritt + Bestätigungsseite „Habe ich verstanden“ vor Fertig; Fertig erst nach Haken aktiv, im Emulator geprüft).
 - Neu belegt durch Test: Gemini-Ausfall bei fremdem Mandanten -> Ansage + Rückruf-Hinweis (`FEHLKEY=1 selbsttest-mandant.sh`: PASS grund=live-fehler). Normaler Mandanten-Selbsttest PASS, Kays Selbsttest #67 user 8 ok, E2E ALLE PASS, vitest 19/19, Engine-Unit 14/14.
 - Kays Handy: 2.2-hinweise installiert, CALL_SCREENING de.gemivo.callagent, Dialer com.android.contacts, READ_CONTACTS + Akku-Whitelist erhalten.
+
+## 2.3-sicherheit (07.11.2026) – Allowlist/fail2ban-Anbindung
+- `server/mandant.js` ruft nach jedem Neuschreiben von pjsip_mandanten.conf sofort `/usr/local/sbin/sip-allowlist` auf und pflegt in `/etc/asterisk/sip-allowlist-extra` einen automatischen Block mit belegten Anbieter-Netzen (sipgate laut help.sipgate.de: 217.10.64.0/20, 217.116.112.0/20, 212.9.32.0/19, 2001:ab7:2000:3::/64, 2001:ab7:3000:2::/64), manuelle Zeilen bleiben.
+- Mandanten-Selbsttest: sip-allowlist „offen fuer“ direkt beim Anlegen, „geschlossen fuer“ beim Entfernen; fail2ban-Fehlzähler vorher=2 nachher=2 (Aufräum-Reihenfolge korrigiert); alle PASS. Kays Selbsttest #71 user 8 ok; E2E ALLE PASS; vitest 19/19; Engine-Unit PASS.
+- „Gut zu wissen“ Sicherheit/Erreichbarkeit an die echte Konfiguration angepasst (nur eingetragene Boxen/Anbieter, 3 Fehlversuche -> 24 h Sperre, Adresswechsel bis zu 5 Minuten). Port 5070 wird NICHT weltweit geöffnet.
+- Kays Handy: 2.3-sicherheit, Rolle/Dialer/Kontakte/Akku/KI-Schalter erhalten.

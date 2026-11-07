@@ -11,8 +11,11 @@ TOK=$(cat /opt/callagent/.app-token)
 PW=$(openssl rand -hex 12)
 sync() { curl -s -X POST -H "X-App-Token: $TOK" http://127.0.0.1:3114/api/intern/pjsip-sync; echo; }
 aufraeumen() {
+  # Reihenfolge wichtig (fail2ban!): erst Mandanten-Registrierung abmelden, solange testprov noch existiert,
+  # sonst zaehlt das Abmelde-REGISTER als InvalidAccountID gegen die eigene Server-IP.
   sqlite3 -cmd ".timeout 5000" $DB "DELETE FROM ca_mandant WHERE user_id=$UID_T; DELETE FROM calls WHERE user_id=$UID_T;" || true
-  rm -f "$CONF"; sync >/dev/null; asterisk -rx "module reload res_pjsip.so" >/dev/null
+  sync >/dev/null; sleep 4
+  rm -f "$CONF"; asterisk -rx "module reload res_pjsip.so" >/dev/null
 }
 trap aufraeumen EXIT
 cat > "$CONF" <<T

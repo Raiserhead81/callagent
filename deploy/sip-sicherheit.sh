@@ -29,7 +29,8 @@ banaction = iptables-allports
 maxretry = 3
 findtime = 600
 bantime  = 86400
-ignoreip = 127.0.0.1/8 ::1 192.168.178.0/24
+# eigene Server-Adressen ausnehmen: Selbsttests (selbsttest-mandant.sh) registrieren ueber die oeffentliche IP
+ignoreip = 127.0.0.1/8 ::1 192.168.178.0/24 116.203.204.226 2a01:4f8:1c19:46e9::1
 EOF
 touch /var/log/asterisk/security /var/log/asterisk/messages
 systemctl reload fail2ban || systemctl restart fail2ban

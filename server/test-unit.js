@@ -118,3 +118,14 @@ test('mandant: SIP-Eingaben pruefen + Owner nie konfigurierbar', () => {
   assert.ok(M.pruefeSip({ sip_server: 'ok.de', sip_user: 'a b' }).length > 0);
   assert.equal(M.istKonfigurierbar({ owner: 1, aktiv: 1, sip_modus: 'fritzbox', gemini_status: 'ok', sip_server: 'a.de', sip_user: 'u', sip_pass_enc: 'v1:x' }), false);
 });
+
+test('allowlist: sipgate-Netze nur bei sipgate-Nutzern, manuelle Zeilen bleiben', () => {
+  const fb = { m: { sip_server: 'abc.myfritz.net' } }, sg = { m: { sip_server: 'sipgate.de' } };
+  assert.deepEqual(M.anbieterNetze([fb]), []);
+  assert.ok(M.anbieterNetze([fb, sg]).includes('217.10.64.0/20'));
+  const alt = '# Kay manuell\n203.0.113.5\n';
+  const neu = M.extraText(alt, M.anbieterNetze([sg]));
+  assert.match(neu, /^# Kay manuell\n203\.0\.113\.5\n# --- automatisch/);
+  assert.match(neu, /217\.10\.64\.0\/20/);
+  assert.equal(M.extraText(neu, []), alt); // Nutzer weg -> Block weg, Manuelles bleibt
+});
