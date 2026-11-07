@@ -183,8 +183,14 @@ class Anruf:
                     await live.lauf(r["prompt"], r.get("gemini_key"))
                     return
                 except Exception as e:
-                    if not self.offen or (live and (live.puffer or live.text_ich)) or not fallback_ok:
-                        raise  # Gespraech lief schon / fremder Mandant -> kein Wechsel auf Kays Altweg
+                    if not self.offen or (live and (live.puffer or live.text_ich)):
+                        raise  # Gespraech lief schon -> kein Neustart mitten im Anruf
+                    if not fallback_ok:
+                        # Fremder Mandant: Gemini nicht erreichbar / Key-Guthaben leer -> Ansage, Nutzer bekommt Rueckruf-Hinweis
+                        log.exception("[%s] Live fehlgeschlagen (Mandant %s): %s", self.nummer, self.tenant, e)
+                        await self.ansage_und_auflegen()
+                        self.grund = "live-fehler"
+                        return
                     log.exception("[%s] Live fehlgeschlagen, alter Weg: %s", self.nummer, e)
                     await asyncio.to_thread(backend, "/api/end", {"session": self.session, "grund": "live-fehler"}, 60)
                     self.session = None

@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import { Kopf, Fuss } from "@/components/Kopf";
 import { Bildschirm } from "@/components/Bildschirm";
-import { SCHRITTE, zuHtml } from "@/lib/anleitung";
+import { SCHRITTE, HINWEISE, zuHtml } from "@/lib/anleitung";
 
 export const metadata: Metadata = { title: "Anleitung – Gemma Anrufassistent", description: "Schritt für Schritt: Gemini-Schlüssel, FritzBox oder SIP-Anbieter, Android-App, Rufumleitung, Kosten, Abschalten." };
 
 const INHALT = [
   ["voraussetzungen", "Voraussetzungen"], ...SCHRITTE.map((s, i) => [s.id, `${i + 1}. ${s.titel}`]),
-  ["kosten", "Kosten"], ["aus", "Ausschalten und Löschen"], ["datenschutz", "Datenschutz"], ["grenzen", "Was Gemma kann und nicht kann"],
+  ["gut-zu-wissen", "Gut zu wissen: Was passieren kann"], ["kosten", "Kosten"], ["aus", "Ausschalten und Löschen"], ["datenschutz", "Datenschutz"], ["grenzen", "Was Gemma kann und nicht kann"],
 ];
 
 export default function Anleitung() {
@@ -66,6 +66,9 @@ export default function Anleitung() {
             {st.quelle && <p className="text-sm text-tx2">Quelle: {st.quelle}</p>}
           </section>
         ))}
+
+        <h2 id="gut-zu-wissen">Gut zu wissen: Was passieren kann</h2>
+        <ul>{HINWEISE.map(h => <li key={h.id} id={"hinweis-" + h.id}><b>{h.titel}:</b> <span dangerouslySetInnerHTML={{ __html: zuHtml(h.text) }} /></li>)}</ul>
 
         <h2 id="kosten">Kosten</h2>
         <ul>

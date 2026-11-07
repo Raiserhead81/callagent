@@ -7,6 +7,7 @@
  */
 export interface Skizze { titel: string; pfad?: string[]; zeilen: [string, string?][] }
 export interface Unterschritt { text: string; skizze?: Skizze; bild?: string; bildText?: string }
+export interface Hinweis { id: string; titel: string; text: string; schritte: string[] }
 export interface Schritt {
   id: string; titel: string; kurz: string; ziel: string;
   unterschritte: Unterschritt[];
@@ -15,7 +16,7 @@ export interface Schritt {
   quelle?: string;
 }
 
-export const ANLEITUNG_VERSION = "2026-11-07c";
+export const ANLEITUNG_VERSION = "2026-11-07d";
 
 export const SCHRITTE: Schritt[] = [
   {
@@ -142,6 +143,30 @@ export const SCHRITTE: Schritt[] = [
       ansage: "Anrufer hört „Assistentin nicht verfügbar“: Gemini-Schlüssel/Guthaben prüfen.",
     },
   },
+];
+
+/** "Gut zu wissen: Was passieren kann" – nur Punkte, die aus Aufbau/Konfiguration belegbar sind. */
+export const HINWEISE: Hinweis[] = [
+  { id: "besetzt", titel: "Auch Kontakte können bei Gemma landen", schritte: ["umleitung"],
+    text: "Die Umleitung greift bei **besetzt**. Telefonierst du gerade selbst oder drückst einen Anruf weg, geht auch ein Anruf aus deinen Kontakten an Gemma." },
+  { id: "unbekannt", titel: "Was als „unbekannt“ gilt", schritte: ["rechte"],
+    text: "Kontakte klingeln normal. Unterdrückte Nummern gelten als unbekannt. Ruft jemand von einer anderen Nummer an als gespeichert (z. B. Firmen-Durchwahl statt Zentrale), gilt er ebenfalls als unbekannt." },
+  { id: "akku", titel: "Energiesparen kann die App einfrieren", schritte: ["rechte"],
+    text: "Manche Hersteller (z. B. ColorOS, Samsung, Xiaomi) frieren Apps im Hintergrund ein. Dann klingelt ein unbekannter Anruf ganz normal, statt zu Gemma zu gehen. Die Akku-Ausnahme aus Schritt 6 schützt davor." },
+  { id: "kosten", titel: "Kosten", schritte: ["gemini", "umleitung"],
+    text: "Gemini rechnet Google direkt über deinen Schlüssel ab. Die Umleitung zählt in deinem Mobilfunktarif wie ein Anruf ins deutsche Festnetz. gemivo selbst ist in der Beta kostenlos." },
+  { id: "grenzen", titel: "Gesprächsgrenzen", schritte: ["test"],
+    text: "Gemma legt nach höchstens **60 Sekunden** auf, ebenso nach **10 Sekunden Stille**. Sie verspricht nichts, macht keine Termine und stellt nicht durch – sie nimmt nur das Anliegen auf." },
+  { id: "verhoeren", titel: "Die KI kann sich verhören", schritte: ["test"],
+    text: "Namen und Firmen werden manchmal falsch verstanden. Transkript und Zusammenfassung entstehen automatisch und sind nicht wörtlich garantiert. Im Zweifel zurückrufen." },
+  { id: "erreichbar", titel: "Wenn Gemma nicht erreichbar ist", schritte: ["anschluss"],
+    text: "Ändert sich die Internet-Adresse deiner FRITZ!Box (z. B. nächtliche Zwangstrennung), meldet sich Gemma automatisch neu an; das kann **einige Minuten** dauern. Ist der gemivo-Server nicht angemeldet, kann Gemma nicht abnehmen – was der Anrufer dann hört (z. B. besetzt), entscheidet deine FRITZ!Box bzw. dein Anbieter. Ist Google gestört oder dein Guthaben leer, hört der Anrufer eine kurze Ansage, dass die Assistentin gerade nicht verfügbar ist, und du bekommst einen Hinweis zum Zurückrufen." },
+  { id: "datenschutz", titel: "Datenschutz", schritte: ["name"],
+    text: "Anrufer hören zu Beginn, dass eine **digitale Assistentin** spricht. Transkripte und Zusammenfassungen werden gespeichert, bis du sie löschst. Das Gesprächsaudio verarbeitet Google (Gemini) über deinen Schlüssel; Tonaufnahmen speichern wir nicht." },
+  { id: "sicherheit", titel: "Sicherheit", schritte: ["anschluss"],
+    text: "Gib dem IP-Telefon „Gemma“ in der FRITZ!Box ein **langes Zufallskennwort**; Gemma meldet sich nur damit an. Dein Kennwort und dein Gemini-Schlüssel liegen verschlüsselt auf dem gemivo-Server. Der Server nimmt Anrufe nur über angemeldete Anschlüsse an, nicht anonym." },
+  { id: "aus", titel: "Jederzeit ausschalten", schritte: ["umleitung"],
+    text: "Umleitung aus mit `##67#` oder in der App den Schalter „Gemma nimmt unbekannte Anrufe an“ ausschalten – dann klingeln alle Anrufe wieder normal." },
 ];
 
 /** Schritt-Text fuer Web (HTML): `code` zuerst (darin keine weitere Auszeichnung), sonst **fett** / *kursiv*. */

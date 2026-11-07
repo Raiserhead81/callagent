@@ -214,6 +214,10 @@ public class MainActivity extends Activity {
         JSONArray us = st.optJSONArray("unterschritte");
         if (us != null) for (int k = 0; k < us.length(); k++) unterschritt(k + 1, us.optJSONObject(k));
 
+        // Gut zu wissen (was passieren kann) zu diesem Schritt
+        java.util.List<JSONObject> hw = Anleitung.hinweise(this, id);
+        if (!hw.isEmpty()) inhalt.addView(hinweisKarte(hw, "Gut zu wissen"));
+
         // Aktion
         LinearLayout box = karte();
         box.addView(text("Jetzt du", 13, true));
@@ -611,7 +615,43 @@ public class MainActivity extends Activity {
     }
 
     // ---------------- Fertig + Uebersicht ----------------
+    /** Karte mit Hinweisen "Was passieren kann". */
+    private LinearLayout hinweisKarte(java.util.List<JSONObject> hw, String titel) {
+        LinearLayout k = karte();
+        GradientDrawable bg = new GradientDrawable(); bg.setCornerRadius(dp(12)); bg.setStroke(dp(1), cAk); bg.setColor(cFl2);
+        k.setBackground(bg);
+        k.addView(text("ⓘ  " + titel, 16, true));
+        for (JSONObject h : hw) {
+            TextView t = text("", 15, false);
+            android.text.SpannableStringBuilder sb = new android.text.SpannableStringBuilder();
+            sb.append(h.optString("titel") + ": ");
+            sb.setSpan(new android.text.style.StyleSpan(Typeface.BOLD), 0, sb.length(), 0);
+            sb.append(Anleitung.formatiert(h.optString("text")));
+            t.setText(sb);
+            k.addView(t);
+        }
+        return k;
+    }
+
+    /** Vor "Fertig": alle Hinweise lesen und bestaetigen. */
+    private void hinweiseBestaetigen() {
+        kopf.setVisibility(View.VISIBLE); unten.setVisibility(View.GONE);
+        kopfText.setText("Fast fertig · Gut zu wissen"); balken.setProgress(IDS.length);
+        inhalt.addView(text("Was passieren kann", 24, true));
+        TextView z = text("Bitte einmal lesen – dann weißt du, was dich erwartet.", 16, false); z.setTextColor(cTx2); inhalt.addView(z);
+        inhalt.addView(hinweisKarte(Anleitung.hinweise(this, null), "Gut zu wissen"));
+        CheckBox cb = new CheckBox(this);
+        cb.setText("Habe ich verstanden"); cb.setTextSize(17); cb.setTextColor(cTx); cb.setMinHeight(dp(56));
+        inhalt.addView(cb);
+        Button f = knopf("Fertig", v -> { Konfig.setzeFlag(this, "hinweise_ok", true); funnel("assistent", "hinweise-bestaetigt"); zeige(FERTIG); }, true);
+        f.setEnabled(false); f.setAlpha(.4f);
+        cb.setOnCheckedChangeListener((x, an) -> { f.setEnabled(an); f.setAlpha(an ? 1f : .4f); });
+        inhalt.addView(f);
+        inhalt.addView(knopf("Zurück", v -> zeige(FERTIG - 1), false));
+    }
+
     private void fertig() {
+        if (!Konfig.flag(this, "hinweise_ok")) { hinweiseBestaetigen(); return; }
         boolean alles = true;
         for (String id : IDS) if (!id.equals("test") && !ok(id)) alles = false;
         Konfig.setzeFlag(this, "assistent_fertig", alles);
@@ -641,6 +681,7 @@ public class MainActivity extends Activity {
         if (me != null && me.optJSONObject("zaehler") != null) { TextView z = text(me.optJSONObject("zaehler").optString("text"), 14, false); z.setTextColor(cTx2); inhalt.addView(z); }
         statusListe();
         inhalt.addView(knopf("Einrichtung fortsetzen / neu starten", v -> { Konfig.setzeFlag(this, "assistent_fertig", false); zeige(ersterOffener()); }, true));
+        inhalt.addView(knopf("Gut zu wissen: Was passieren kann", v -> { Konfig.setzeFlag(this, "hinweise_ok", false); zeige(FERTIG); }, false));
         inhalt.addView(knopf("Anrufe im Dashboard", v -> web("/app"), false));
         inhalt.addView(knopf("Feedback geben", v -> feedback(), false));
     }

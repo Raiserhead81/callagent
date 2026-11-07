@@ -38,7 +38,12 @@ callerid=Testanrufer <+4915199999999>
 T
 chown root:asterisk "$CONF"; chmod 640 "$CONF"
 grep -q pjsip_testprov.conf /etc/asterisk/pjsip.conf || echo "#tryinclude pjsip_testprov.conf" >> /etc/asterisk/pjsip.conf
-KEYENC=$(cd /opt/callagent && node -e "const m=require('./mandant');console.log(m.verschluesseln(require('fs').readFileSync('/opt/gemma-live/gemini-key-paid','utf8').trim()))")
+# FEHLKEY=1: absichtlich ungueltiger Key -> erwartet Ansage + grund live-fehler + Rueckruf-Hinweis
+if [ "${FEHLKEY:-0}" = "1" ]; then
+  KEYENC=$(cd /opt/callagent && node -e "console.log(require('./mandant').verschluesseln('AIzaSyUNGUELTIG_selbsttest_0000000000000'))")
+else
+  KEYENC=$(cd /opt/callagent && node -e "const m=require('./mandant');console.log(m.verschluesseln(require('fs').readFileSync('/opt/gemma-live/gemini-key-paid','utf8').trim()))")
+fi
 PWENC=$(cd /opt/callagent && node -e "console.log(require('./mandant').verschluesseln(process.argv[1]))" "$PW")
 sqlite3 -cmd ".timeout 5000" $DB "INSERT OR REPLACE INTO ca_mandant(user_id,email,vorname,aussprache,sip_modus,sip_server,sip_port,sip_user,sip_pass_enc,sip_nummer,sip_ipv,gemini_key_enc,gemini_status,notify_email,notify_push,aktiv,limit_monat,owner,erstellt,geaendert)
  VALUES($UID_T,'test$UID_T@example.invalid','Jörg','','anbieter','116.203.204.226',5060,'testprov','$PWENC','04519999990','v4','$KEYENC','ok',0,0,1,300,0,datetime('now'),datetime('now'));"
@@ -61,6 +66,11 @@ for i in $(seq 1 30); do
 done
 sqlite3 -line $DB "SELECT id,user_id,nummer,grund,substr(transkript,1,400) AS transkript,zusammenfassung FROM calls WHERE id>$VOR;"
 U=$(sqlite3 $DB "SELECT user_id FROM calls WHERE id>$VOR LIMIT 1;")
+if [ "${FEHLKEY:-0}" = "1" ]; then
+  G=$(sqlite3 $DB "SELECT grund||' | '||zusammenfassung FROM calls WHERE id>$VOR LIMIT 1;")
+  echo "$G" | grep -q "live-fehler | Gemma konnte das Gespräch nicht führen" && echo "PASS Gemini-Ausfall: Ansage + Rueckruf-Hinweis ($G)" || { echo "FAIL Gemini-Ausfall: $G"; exit 1; }
+  exit 0
+fi
 B=$(sqlite3 $DB "SELECT transkript FROM calls WHERE id>$VOR LIMIT 1;")
 [ "$U" = "$UID_T" ] && echo "PASS Anruf dem Mandanten $UID_T zugeordnet" || { echo "FAIL Zuordnung ($U)"; exit 1; }
 echo "$B" | grep -q "digitale Assistentin von Jörg" && echo "PASS Begruessung mit Mandanten-Name + KI-Hinweis" || { echo "FAIL Begruessung"; exit 1; }

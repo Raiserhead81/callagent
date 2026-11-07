@@ -80,3 +80,8 @@ Bekannte Fehler aus dem Test sind behoben: Vosk braucht 16 kHz (vorher Absturz b
 - Gemini-Key-Test über API mit echtem Key: Live-Connect ok in 553 ms; ungültiger Key -> „Der Schlüssel ist ungültig“.
 - Android 2.0-assistent im Emulator: Kopplung per Deep-Link, Gemini-Fehlerdialog, Rolle CALL_SCREENING/Kontakte/Akku grün, Funnel-Meldungen, Feedback mit Screenshot gespeichert.
 - Screenshots (selbst gerendert, Playwright 390px + Emulator): docs/screenshots/*.png
+
+## 2.2-hinweise (07.11.2026)
+- „Gut zu wissen: Was passieren kann“ (10 Punkte) in `web/src/lib/anleitung.ts` -> Web /anleitung#gut-zu-wissen + App (je Schritt + Bestätigungsseite „Habe ich verstanden“ vor Fertig; Fertig erst nach Haken aktiv, im Emulator geprüft).
+- Neu belegt durch Test: Gemini-Ausfall bei fremdem Mandanten -> Ansage + Rückruf-Hinweis (`FEHLKEY=1 selbsttest-mandant.sh`: PASS grund=live-fehler). Normaler Mandanten-Selbsttest PASS, Kays Selbsttest #67 user 8 ok, E2E ALLE PASS, vitest 19/19, Engine-Unit 14/14.
+- Kays Handy: 2.2-hinweise installiert, CALL_SCREENING de.gemivo.callagent, Dialer com.android.contacts, READ_CONTACTS + Akku-Whitelist erhalten.

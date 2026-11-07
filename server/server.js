@@ -441,6 +441,7 @@ const server = http.createServer((req, res) => {
       protokollEnde(s.dbId, body.grund || 'aufgelegt', () => {
         zusammenfassung(s.dbId, (err, sum) => {
           if (!sum || typeof sum !== 'string') sum = 'keine Zusammenfassung';
+          if (body.grund === 'live-fehler' && !s.owner) sum = 'Gemma konnte das Gespräch nicht führen (Gemini nicht erreichbar oder Schlüssel/Guthaben ungültig). Der Anrufer hat eine kurze Ansage gehört. Bitte zurückrufen.';
           console.log('[end] Zusammenfassung db=' + s.dbId + ' uid=' + s.uid + ':', sum.slice(0, 80));
           dbRunSafe(`UPDATE calls SET zusammenfassung=${esc(sum)} WHERE id=${parseInt(s.dbId, 10)};`);
           if (!/^test|handshake/.test(String(s.nummer || '')) && body.grund !== 'test') {

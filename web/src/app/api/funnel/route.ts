@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { nutzer, nichtAngemeldet } from "@/lib/auth";
 import { ok, fehler, body } from "@/lib/antwort";
 import { SCHRITTE } from "@/lib/regeln";
-const EREIGNISSE = ["gesehen", "erledigt", "abgebrochen", "uebersprungen", "fertig"];
+const EREIGNISSE = ["gesehen", "erledigt", "abgebrochen", "uebersprungen", "fertig", "hinweise-bestaetigt"];
 /** Einrichtungs-Funnel: welcher Schritt gesehen/erledigt/abgebrochen (Admin sieht nur Summen je Schritt). */
 export async function POST(req: NextRequest) {
   const u = await nutzer(req);

@@ -46,6 +46,19 @@ public class Anleitung {
         return new JSONObject();
     }
 
+    /** Hinweise "Gut zu wissen" (alle oder nur die zu einem Schritt). */
+    public static java.util.List<JSONObject> hinweise(Context c, String schritt) {
+        java.util.List<JSONObject> l = new java.util.ArrayList<>();
+        JSONArray a = laden(c).optJSONArray("hinweise");
+        if (a != null) for (int i = 0; i < a.length(); i++) {
+            JSONObject h = a.optJSONObject(i);
+            if (schritt == null) { l.add(h); continue; }
+            JSONArray s = h.optJSONArray("schritte");
+            if (s != null) for (int k = 0; k < s.length(); k++) if (schritt.equals(s.optString(k))) { l.add(h); break; }
+        }
+        return l;
+    }
+
     private static File cache(Context c) { return new File(c.getFilesDir(), "anleitung.json"); }
     private static String lese(InputStream in) throws Exception {
         ByteArrayOutputStream b = new ByteArrayOutputStream();
