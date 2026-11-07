@@ -16,7 +16,7 @@
     <application
         android:label="@string/app_name"
         android:icon="@mipmap/ic_launcher"
-        android:theme="@android:style/Theme.Material.Light.DarkActionBar"
+        android:theme="@android:style/Theme.DeviceDefault.DayNight"
         android:usesCleartextTraffic="false">
 
         <!-- Eigene Dialer-Activity: traegt die DIAL-Filter (Role-Pflicht, NICHT am Launcher) -->

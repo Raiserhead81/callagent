@@ -21,6 +21,8 @@ public class Konfig {
     public static void setzeGeraeteToken(Context c, String t) { prefs(c).edit().putString("geraete_token", t).apply(); }
     public static boolean flag(Context c, String k) { return prefs(c).getBoolean(k, false); }
     public static void setzeFlag(Context c, String k, boolean v) { prefs(c).edit().putBoolean(k, v).apply(); }
+    public static int zahl(Context c, String k) { return prefs(c).getInt(k, 0); }
+    public static void setzeZahl(Context c, String k, int v) { prefs(c).edit().putInt(k, v).apply(); }
 
     public static boolean kiAktiv(Context c) {
         return prefs(c).getBoolean("ki_aktiv", true);
