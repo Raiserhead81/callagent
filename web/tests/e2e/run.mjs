@@ -54,6 +54,30 @@ try {
   r = await p0.request.get(BASE + "/api/intern/zugang?uid=8"); ok("intern von aussen gesperrt", r.status() === 404);
   r = await p0.request.get(BASE + "/api/anrufe"); ok("API ohne Login 401", r.status() === 401);
 
+  // --- Android: keine zweite (Web-)App, stattdessen Hinweis auf die echte Android-App ---
+  const UA_ANDROID = "Mozilla/5.0 (Linux; Android 15; PMA110) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36";
+  const and = await browser.newContext({ viewport: { width: 360, height: 800 }, userAgent: UA_ANDROID, locale: "de-DE" });
+  const pan = await and.newPage();
+  await pan.goto(BASE + "/");
+  await pan.waitForSelector("[data-testid=android-banner]");
+  ok("Android: Banner „Hol dir die Android-App“", (await pan.textContent("[data-testid=android-banner]")).includes("Hol dir die Android-App"));
+  ok("Android: Banner verlinkt APK", (await pan.getAttribute("[data-testid=android-banner] a", "href")) === "/download/gemivo-anruf.apk");
+  const prevented = await pan.evaluate(() => { const e = new Event("beforeinstallprompt", { cancelable: true }); window.dispatchEvent(e); return e.defaultPrevented; });
+  ok("Android: Install-Angebot (beforeinstallprompt) unterdrückt", prevented === true);
+  let man = await (await pan.request.get(BASE + "/manifest.webmanifest", { headers: { "User-Agent": UA_ANDROID } })).json();
+  ok("Android: Manifest display=browser (keine WebAPK)", man.display === "browser", man.display);
+  ok("Android: kein H-Overflow mit Banner @360", await pan.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
+  await pan.screenshot({ path: SHOTS + "/android-banner.png" });
+  man = await (await p0.request.get(BASE + "/manifest.webmanifest", { headers: { "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1" } })).json();
+  ok("iOS/Desktop: Manifest standalone (Web-App bleibt installierbar)", man.display === "standalone");
+  await p0.goto(BASE + "/");
+  await p0.evaluate(() => localStorage.setItem("anruf-theme", "dark")); await p0.reload();
+  ok("Farbschema-Wahl bleibt nach Neuladen", (await p0.evaluate(() => document.documentElement.getAttribute("data-theme"))) === "dark");
+  await p0.evaluate(() => localStorage.removeItem("anruf-theme"));
+  ok("Desktop: kein Android-Banner", (await p0.locator("[data-testid=android-banner]").count()) === 0);
+  const prev2 = await p0.evaluate(() => { const e = new Event("beforeinstallprompt", { cancelable: true }); window.dispatchEvent(e); return e.defaultPrevented; });
+  ok("Desktop: Install-Angebot NICHT unterdrückt", prev2 === false);
+
   // --- Nutzer A ---
   const ca = await kontext(browser, A, "Testa Anrufer");
   const pa = await ca.newPage();

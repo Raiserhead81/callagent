@@ -12,4 +12,3 @@ export function ThemeKnopf() {
   };
   return <button onClick={weiter} aria-label="Farbschema wechseln" className="knopf knopf-2 !px-3 text-sm">{t === "dark" ? "Dunkel" : t === "light" ? "Hell" : "Auto"}</button>;
 }
-export const THEME_SKRIPT = `try{var t=localStorage.getItem("anruf-theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}`;

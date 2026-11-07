@@ -1,7 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import { THEME_SKRIPT } from "@/components/Theme";
+import Script from "next/script";
 import { UpdateWatcher } from "@/components/UpdateWatcher";
+import { AndroidBanner } from "@/components/AndroidBanner";
+import { THEME_SKRIPT, INSTALL_SPERRE } from "@/lib/frueh";
 
 export const metadata: Metadata = {
   title: "Gemma Anrufassistent – gemivo",
@@ -15,8 +17,10 @@ export const viewport: Viewport = { width: "device-width", initialScale: 1, them
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="de" suppressHydrationWarning>
-      <head><script dangerouslySetInnerHTML={{ __html: THEME_SKRIPT }} /></head>
       <body className="min-h-dvh font-sans antialiased">
+        {/* frueh: Farbschema setzen + auf Android Chromes Web-App-Installation abfangen (head-<script> rendert Next 16 nicht) */}
+        <Script id="frueh" strategy="beforeInteractive">{THEME_SKRIPT + INSTALL_SPERRE}</Script>
+        <AndroidBanner />
         {children}
         <UpdateWatcher />
       </body>
