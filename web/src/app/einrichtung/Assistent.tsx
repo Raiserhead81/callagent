@@ -83,7 +83,7 @@ function Gemini({ me, owner, setMsg, laeuft, setLaeuft, fertig }: P) {
         <li>Schlüssel hier einfügen und testen.</li>
       </ol>
       <label className="mt-3 block text-sm font-semibold" htmlFor="key">Schlüssel</label>
-      <input id="key" className="eingabe mono mt-1" autoComplete="off" spellCheck={false} placeholder="AIza…" value={key} onChange={e => setKey(e.target.value.trim())} />
+      <input id="key" className="eingabe mono mt-1" autoComplete="off" spellCheck={false} placeholder="AIza… oder AQ.…" value={key} onChange={e => setKey(e.target.value.trim())} />
       <div className="mt-3 flex flex-wrap gap-2">
         <button className="knopf" disabled={laeuft || key.length < 30} onClick={() => test(true)}>Schlüssel testen und speichern</button>
         {me.gemini.status !== "fehlt" && <button className="knopf knopf-2" disabled={laeuft} onClick={() => test(false)}>Gespeicherten erneut testen</button>}

@@ -1,0 +1,23 @@
+// Echte Screenshots fuer Store/SEO (keine erfundenen Anrufe): Testkonto 990010, danach geloescht
+import { createRequire } from "module"; import fs from "fs"; import crypto from "crypto"; import { execFileSync } from "child_process";
+const require = createRequire(import.meta.url);
+const { chromium } = require(require.resolve("playwright", { paths: ["/usr/lib/node_modules"] }));
+const OUT = "/var/www/html/img/anruf"; fs.mkdirSync(OUT, { recursive: true });
+const SECRET = fs.readFileSync("/etc/gemivo/gemivo.env", "utf8").match(/^GEMIVO_SSO_SECRET=["']?([^"'\n]+)/m)[1];
+const b = x => Buffer.from(x).toString("base64url");
+const h = b(JSON.stringify({ alg: "HS256", typ: "JWT" })), p = b(JSON.stringify({ sub: 990010, email: "demo@example.invalid", name: "Anna", exp: Math.floor(Date.now() / 1000) + 600 }));
+const jwt = h + "." + p + "." + crypto.createHmac("sha256", SECRET).update(h + "." + p).digest("base64url");
+const br = await chromium.launch({ executablePath: "/root/.cache/ms-playwright/chromium-1243/chrome-linux64/chrome" });
+const ctx = await br.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, locale: "de-DE" });
+await ctx.addCookies([{ name: "gemivo_sso", value: jwt, domain: "anruf.gemivo.de", path: "/", secure: true }]);
+const pg = await ctx.newPage();
+const shot = async (url, name, sel) => { await pg.goto("https://anruf.gemivo.de" + url, { waitUntil: "networkidle" }); if (sel) await pg.locator(sel).first().scrollIntoViewIfNeeded(); await pg.waitForTimeout(400); await pg.screenshot({ path: `${OUT}/${name}.png` }); };
+await shot("/", "anruf-start");
+await shot("/einrichtung?schritt=gemini", "anruf-einrichtung-gemini");
+await shot("/einrichtung?schritt=anschluss", "anruf-einrichtung-fritzbox");
+await pg.goto("https://anruf.gemivo.de/anleitung#fritzbox", { waitUntil: "networkidle" });
+const fig = pg.locator("figure").first(); await fig.scrollIntoViewIfNeeded(); await fig.screenshot({ path: `${OUT}/anruf-fritzbox-skizze.png` });
+await shot("/app", "anruf-dashboard-leer");
+await br.close();
+for (const t of ["ca_funnel", "ca_feedback", "ca_mandant"]) execFileSync("sqlite3", ["/opt/callagent/data/calls.db", `DELETE FROM ${t} WHERE user_id=990010`]);
+console.log(fs.readdirSync(OUT).join(" "));
