@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Play-Store-Variante: alle Alt-Komponenten aus der Einzelnutzer-Zeit (Dialer-Rolle, InCallService,
+     Bedienungshilfe, Mikrofon-Dienst, Test-ConnectionService) entfernen. Die App braucht im Produkt nur:
+     CallScreeningService + Kontakte lesen + Internet (+ Waehlen des Umleitungscodes). -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <uses-permission android:name="android.permission.ANSWER_PHONE_CALLS" tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" tools:node="remove" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" tools:node="remove" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" tools:node="remove" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" tools:node="remove" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" tools:node="remove" />
+    <!-- Play-Richtlinie: REQUEST_IGNORE_BATTERY_OPTIMIZATIONS nur fuer eng begrenzte Faelle -> Play-Variante
+         oeffnet stattdessen die Akku-Einstellungen (keine Berechtigung noetig) -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" tools:node="remove" />
+    <application>
+        <activity android:name=".DialerActivity" tools:node="remove" />
+        <activity android:name=".CallUI" tools:node="remove" />
+        <service android:name=".InCall" tools:node="remove" />
+        <service android:name=".InCallControl" tools:node="remove" />
+        <service android:name=".AudioHelfer" tools:node="remove" />
+        <service android:name=".TestVerbindung" tools:node="remove" />
+        <service android:name=".AudioLoop" tools:node="remove" />
+    </application>
+</manifest>

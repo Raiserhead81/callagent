@@ -1,5 +1,5 @@
 {
- "version": "2026-11-07e",
+ "version": "2026-11-07f",
  "schritte": [
   {
    "id": "konto",
@@ -253,9 +253,9 @@
      "bildText": "Echter Android-Systemdialog (Android 15)"
     },
     {
-     "text": "**Akku:** Bei „Soll die App immer im Hintergrund ausgeführt werden?“ **Zulassen** tippen.",
+     "text": "**Akku:** Bei „Soll die App immer im Hintergrund ausgeführt werden?“ **Zulassen** tippen. (Bei der Version aus dem Google Play Store öffnet sich stattdessen die Liste der Akku-Optimierung: dort „Gemma Anruf“ suchen und von der Optimierung ausnehmen.)",
      "bild": "akku",
-     "bildText": "Echter Android-Systemdialog (Android 15)"
+     "bildText": "Echter Android-Systemdialog (Android 15, APK-Version)"
     },
     {
      "text": "Zusätzlich je nach Hersteller in der **App-Info**: ColorOS (OnePlus/OPPO/realme) „Akkunutzung › Hintergrundaktivität zulassen“; Samsung „Akku › Nicht eingeschränkt“; Xiaomi „Akkusparmodus › Keine Einschränkungen“ und „Autostart“."

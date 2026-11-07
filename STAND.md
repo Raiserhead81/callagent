@@ -25,7 +25,7 @@
 - Mini-LLM fuer Telefon zu langsam/Denglisch/chinesische Zeichen/erfundene Firmen -> Gemini.
 
 ## Repo / Build
-GitHub Raiserhead81/callagent (main, letzter e8cc7d8+), lokal ~/callagent-app (Air). APK-Build auf gemivo /opt/callagent-app (`./gradlew clean assembleDebug`, SDK /opt/android-sdk). Backups /opt/_backups/callagent/. Selbsttest `/opt/callagent/sip/selbsttest.sh`, Live-API-Test `server/test.sh`, Unit `server/test-unit.js`. Lock-Bereich `callagent`.
+GitHub Raiserhead81/callagent (main, letzter e8cc7d8+), lokal ~/callagent-app (Air). APK-Build auf gemivo /opt/callagent-app (`./gradlew clean assembleDirektDebug` -> app/build/outputs/apk/direkt/debug/, Play: `bundlePlayRelease`, SDK /opt/android-sdk). Backups /opt/_backups/callagent/. Selbsttest `/opt/callagent/sip/selbsttest.sh`, Live-API-Test `server/test.sh`, Unit `server/test-unit.js`. Lock-Bereich `callagent`.
 
 # Produkt „Gemma Anrufassistent“ (Multi-Tenant, ab 07.11.2026)
 - Web: https://anruf.gemivo.de (Next.js 16 standalone, `web/`, /opt/gemivo-anruf, systemd `gemivo-anruf`, :3124). Öffentlich: `/`, `/anleitung`. Mit gemivo-SSO: `/app` (Dashboard), `/einrichtung`, `/koppeln`, `/admin` (nur uid 8).

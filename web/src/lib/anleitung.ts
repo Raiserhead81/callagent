@@ -16,7 +16,7 @@ export interface Schritt {
   quelle?: string;
 }
 
-export const ANLEITUNG_VERSION = "2026-11-07e";
+export const ANLEITUNG_VERSION = "2026-11-07f";
 
 export const SCHRITTE: Schritt[] = [
   {
@@ -107,7 +107,7 @@ export const SCHRITTE: Schritt[] = [
         bild: "rolle", bildText: "Echter Android-Systemdialog (Android 15; Aussehen je nach Hersteller anders)" },
       { text: "**Kontakte:** Bei „Gemma Anruf erlauben, auf deine Kontakte zuzugreifen?“ **Zulassen** tippen. Nur so erkennt die App bekannte Nummern; ohne dieses Recht lehnt sie zur Sicherheit gar nichts ab.",
         bild: "kontakte", bildText: "Echter Android-Systemdialog (Android 15)" },
-      { text: "**Akku:** Bei „Soll die App immer im Hintergrund ausgeführt werden?“ **Zulassen** tippen.", bild: "akku", bildText: "Echter Android-Systemdialog (Android 15)" },
+      { text: "**Akku:** Bei „Soll die App immer im Hintergrund ausgeführt werden?“ **Zulassen** tippen. (Bei der Version aus dem Google Play Store öffnet sich stattdessen die Liste der Akku-Optimierung: dort „Gemma Anruf“ suchen und von der Optimierung ausnehmen.)", bild: "akku", bildText: "Echter Android-Systemdialog (Android 15, APK-Version)" },
       { text: "Zusätzlich je nach Hersteller in der **App-Info**: ColorOS (OnePlus/OPPO/realme) „Akkunutzung › Hintergrundaktivität zulassen“; Samsung „Akku › Nicht eingeschränkt“; Xiaomi „Akkusparmodus › Keine Einschränkungen“ und „Autostart“." },
     ],
     hilfe: {

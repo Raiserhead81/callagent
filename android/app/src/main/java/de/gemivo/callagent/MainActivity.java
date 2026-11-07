@@ -92,7 +92,16 @@ public class MainActivity extends Activity {
         kopf.setPadding(dp(16), dp(10), dp(16), dp(6));
         kopfText = text("", 14, true);
         kopfText.setTextColor(cTx2);
-        kopf.addView(kopfText);
+        boolean randlos = getApplicationInfo().targetSdkVersion >= 35;
+        if (randlos && getActionBar() != null) getActionBar().hide();   // randlos: eigene Kopfzeile statt ueberlappender ActionBar
+        if (randlos) {
+            LinearLayout zeile = new LinearLayout(this); zeile.setOrientation(LinearLayout.HORIZONTAL); zeile.setGravity(Gravity.CENTER_VERTICAL);
+            zeile.addView(kopfText, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+            Button menue = new Button(this); menue.setText("⋮"); menue.setTextSize(22); menue.setContentDescription("Menü");
+            menue.setBackgroundColor(Color.TRANSPARENT); menue.setTextColor(cTx); menue.setOnClickListener(v -> openOptionsMenu());
+            zeile.addView(menue, new LinearLayout.LayoutParams(dp(52), dp(52)));
+            kopf.addView(zeile);
+        } else kopf.addView(kopfText);
         balken = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
         balken.setMax(IDS.length);
         balken.setProgressTintList(android.content.res.ColorStateList.valueOf(cAk));
@@ -119,6 +128,14 @@ public class MainActivity extends Activity {
         unten.addView(weiter, gewicht());
         root.addView(unten);
         setContentView(root);
+        // Ab targetSdk 35 zeichnet Android randlos (ActionBar ausgeblendet, s. o.): Abstand fuer System-Leisten selbst setzen
+        root.setOnApplyWindowInsetsListener((v, ins) -> {
+            if (Build.VERSION.SDK_INT >= 30 && getApplicationInfo().targetSdkVersion >= 35) {
+                android.graphics.Insets s = ins.getInsets(android.view.WindowInsets.Type.systemBars() | android.view.WindowInsets.Type.ime());
+                v.setPadding(s.left, s.top, s.right, s.bottom);
+            }
+            return ins;
+        });
 
         pruefeTestanruf(getIntent());
         boolean kopplung = kopplungAusIntent(getIntent());
@@ -202,7 +219,7 @@ public class MainActivity extends Activity {
         String id = IDS[idx];
         funnel(id, "gesehen");
         JSONObject st = Anleitung.schritt(this, id);
-        kopf.setVisibility(View.VISIBLE); unten.setVisibility(View.VISIBLE);
+        kopf.setVisibility(View.VISIBLE); unten.setVisibility(View.VISIBLE); balken.setVisibility(View.VISIBLE);
         kopfText.setText("Schritt " + (idx + 1) + " von " + IDS.length + " · " + st.optString("kurz", id));
         balken.setProgress(idx + 1);
         TextView t = text(st.optString("titel", id), 24, true);
@@ -541,8 +558,12 @@ public class MainActivity extends Activity {
         }, true);
         Button b2 = knopf("Kontakte erlauben", v -> requestPermissions(new String[]{Manifest.permission.READ_CONTACTS}, 12), true);
         Button b3 = knopf("Akku-Ausnahme anfragen", v -> {
-            try { startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + getPackageName()))); }
-            catch (Exception e) { startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)); }
+            // Direkt-APK: Systemdialog; Play-Variante (ohne REQUEST_IGNORE_BATTERY_OPTIMIZATIONS): Einstellungsliste
+            boolean darf = checkSelfPermission("android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS") == PackageManager.PERMISSION_GRANTED;
+            try {
+                if (darf) startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + getPackageName())));
+                else { toast("In der Liste „Gemma Anruf“ suchen und „Nicht optimieren“ wählen."); startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)); }
+            } catch (Exception e) { startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName()))); }
         }, true);
         k.addView(r1); k.addView(b1); k.addView(r2); k.addView(b2); k.addView(r3); k.addView(b3);
         TextView hh = text(herstellerHinweis(), 14, false); hh.setTextColor(cTx2); k.addView(hh);
@@ -635,7 +656,7 @@ public class MainActivity extends Activity {
 
     /** Vor "Fertig": alle Hinweise lesen und bestaetigen. */
     private void hinweiseBestaetigen() {
-        kopf.setVisibility(View.VISIBLE); unten.setVisibility(View.GONE);
+        kopf.setVisibility(View.VISIBLE); unten.setVisibility(View.GONE); balken.setVisibility(View.VISIBLE);
         kopfText.setText("Fast fertig · Gut zu wissen"); balken.setProgress(IDS.length);
         inhalt.addView(text("Was passieren kann", 24, true));
         TextView z = text("Bitte einmal lesen – dann weißt du, was dich erwartet.", 16, false); z.setTextColor(cTx2); inhalt.addView(z);
@@ -655,7 +676,7 @@ public class MainActivity extends Activity {
         boolean alles = true;
         for (String id : IDS) if (!id.equals("test") && !ok(id)) alles = false;
         Konfig.setzeFlag(this, "assistent_fertig", alles);
-        kopf.setVisibility(View.VISIBLE); unten.setVisibility(View.GONE);
+        kopf.setVisibility(View.VISIBLE); unten.setVisibility(View.GONE); balken.setVisibility(View.VISIBLE);
         kopfText.setText(alles ? "Einrichtung abgeschlossen" : "Noch nicht alles erledigt"); balken.setProgress(IDS.length);
         inhalt.addView(text(alles ? "Fertig! Gemma ist bereit." : "Fast geschafft", 26, true));
         if (!alles) inhalt.addView(text("Rote Schritte antippen und erledigen. Erst dann nimmt Gemma deine Anrufe an.", 16, false));
@@ -671,7 +692,9 @@ public class MainActivity extends Activity {
     }
 
     private void uebersicht() {
-        kopf.setVisibility(View.GONE); unten.setVisibility(View.GONE);
+        boolean randlos = getApplicationInfo().targetSdkVersion >= 35;
+        kopf.setVisibility(randlos ? View.VISIBLE : View.GONE); unten.setVisibility(View.GONE);
+        if (randlos) { kopfText.setText("Übersicht"); balken.setVisibility(View.GONE); }
         inhalt.addView(text("Gemma Anrufassistent", 24, true));
         Switch ki = new Switch(this);
         ki.setText("Gemma nimmt unbekannte Anrufe an"); ki.setTextSize(16); ki.setTextColor(cTx); ki.setMinHeight(dp(52));

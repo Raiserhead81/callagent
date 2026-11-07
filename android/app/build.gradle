@@ -2,13 +2,24 @@ apply plugin: 'com.android.application'
 
 android {
     namespace 'de.gemivo.callagent'
-    compileSdk 34
+    compileSdk 36
     defaultConfig {
         applicationId 'de.gemivo.callagent'
         minSdkVersion 29
         targetSdkVersion 29
-        versionCode 8
-        versionName '2.3-sicherheit'
+        versionCode 9
+        versionName '2.4'
+    }
+    // Vertriebswege: "direkt" = APK-Download von anruf.gemivo.de (unveraendert, targetSdk 29, wie auf Kays Handy),
+    // "play" = Google Play (targetSdk 36 laut Play-Pflicht ab 31.08.2026, ohne Alt-Komponenten, siehe src/play/AndroidManifest.xml)
+    flavorDimensions 'vertrieb'
+    productFlavors {
+        direkt { dimension 'vertrieb' }
+        play {
+            dimension 'vertrieb'
+            targetSdkVersion 36
+            versionNameSuffix '-play'
+        }
     }
     buildTypes {
         release {
