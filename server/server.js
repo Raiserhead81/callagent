@@ -191,12 +191,19 @@ function wavHeader(datenLen, rate, kanal, bits) {
 
 // Freie LLM-Frage ohne Telefon-Persona (erst Mini, dann Gemini)
 function llmFrage(frage, cb) {
+  // Zusammenfassung landet bei Kay (Telegram): Qualitaet zuerst -> Gemini, Mini nur als Ersatz
+  geminiText([{ ich: false, text: frage }], (ge, gt) => {
+    if (!ge && gt && typeof gt === 'string' && gt.trim()) return cb(null, gt);
+    console.log('[llmfrage] Gemini weg (' + (ge ? ge.message : 'leer') + ') -> Mini');
+    llmFrageMiniGeprueft(frage, cb);
+  }, 'Du fasst Telefonate sachlich auf Deutsch zusammen.');
+}
+function llmFrageMiniGeprueft(frage, cb) {
   llmFrageMini(frage, (e, t) => {
     if (!e && t && wiederholt(t)) e = new Error('mini wiederholt sich');
     if (!e && t && denglisch(t)) e = new Error('mini denglisch');
     if (!e && t) return cb(null, t);
-    console.log('[llmfrage] Mini weg (' + (e ? e.message : '?') + ') -> Gemini');
-    geminiText([{ ich: false, text: frage }], cb, 'Du fasst Telefonate sachlich auf Deutsch zusammen.');
+    cb(e || new Error('mini leer'));
   });
 }
 function llmFrageMini(frage, cb) {
