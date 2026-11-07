@@ -87,3 +87,22 @@ Log-Seite gerendert: `docs/log-screenshot.png` (via ~/bin/sichtpruefung, 07.11.2
 - Aenderungen deployen: `rsync -a server/server.js gemivo:/opt/callagent/ && ssh gemivo systemctl restart callagent`
 - Live-Checks: `curl https://callagent.gemivo.de/health`, Protokoll: `https://callagent.gemivo.de/log?token=<token>`
 - Abhaengigkeiten: Node 22, sqlite3-CLI, Mini-Tunnel 11440 (LiteLLM gemma4), Gemini-Key (/opt/gemma-live/gemini-key-paid)
+
+## Android-App (Etappe 2)
+
+Natives Java-Android (kein TWA): Default-Dialer mit CallScreeningService +
+InCallService + AudioLoop (Vosk-Offline-STT -> Server -> AudioTrack-Uplink).
+
+**Installieren (Handy):**
+1. APK laden: https://callagent.gemivo.de/apk/callagent-debug.apk
+2. App oeffnen: Token eintragen (liegt auf gemivo: `/opt/callagent/.app-token`)
+3. "Als Standard-Telefon-App festlegen" -> CallAgent waehlen
+4. Rechte erteilen, Sprachmodell laden (~46 MB, einmalig)
+5. Fertig: Bekannte Nummern klingeln normal, unbekannte nimmt Gemma an.
+
+**Build (gemivo-Server):** Projekt liegt unter `/opt/callagent-app`,
+`./gradlew assembleDebug`, APK landet in `app/build/outputs/apk/debug/`.
+
+**Wichtig:** Telefon-Audio (VOICE_DOWNLINK/Uplink) ist geraeteabhaengig -
+erster echter Testanruf noetig. Vosk small-de erkennt gutes Deutsch,
+bei schlechter Erkennung: groesseres Modell (vosk-model-de-0.21).

@@ -1,0 +1,10 @@
+// CallAgent Android-App (Top-Level)
+buildscript {
+    repositories { google(); mavenCentral() }
+    dependencies { classpath 'com.android.tools.build:gradle:8.5.2' }
+}
+allprojects {
+    repositories { google(); mavenCentral() }
+    // Vosk (STT offline)
+    repositories { maven { url 'https://alphacephei.com/maven/' } }
+}

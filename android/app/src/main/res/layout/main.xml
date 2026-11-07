@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="20dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="📞 CallAgent"
+            android:textSize="26sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:lineSpacingExtra="4dp"
+            android:text="Status wird geladen ..."
+            android:textSize="15sp" />
+
+        <EditText
+            android:id="@+id/token_eingabe"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:hint="App-Token (einmalig eintragen)"
+            android:inputType="text" />
+
+        <Button
+            android:id="@+id/btn_token"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Token speichern" />
+
+        <Button
+            android:id="@+id/btn_dialer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="1. Als Standard-Telefon-App festlegen" />
+
+        <Button
+            android:id="@+id/btn_rechte"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="2. Rechte erteilen" />
+
+        <Button
+            android:id="@+id/btn_modell"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="3. Sprachmodell laden (offline STT)" />
+
+        <Switch
+            android:id="@+id/sw_ki"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="KI-Annahme für unbekannte Nummern" />
+
+        <Button
+            android:id="@+id/btn_log"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Anruf-Protokoll öffnen" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="Bekannte Kontakte klingeln ganz normal. Unbekannte Nummern: Gemma (Gemini-Stimme Kore) nimmt an, notiert das Anliegen im Protokoll."
+            android:textSize="13sp" />
+    </LinearLayout>
+</ScrollView>
