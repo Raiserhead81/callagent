@@ -43,3 +43,22 @@ test('wiederholt: erkennt Schleifen-Zusammenfassungen', () => {
   assert.equal(wiederholt(satz + ' ' + satz), true);
   assert.equal(wiederholt('Thomas Becker von Solarfix bittet um Rueckruf morgen. Es geht um das Angebot fuer die Solaranlage.'), false);
 });
+
+const { ausspracheText } = require('./server.js');
+test('aussprache: Kay -> Kai fuer die Stimme, Begruessung ohne Nachnamen', () => {
+  assert.equal(ausspracheText('Assistentin von Kay. Kays Nummer'), 'Assistentin von Kai. Kais Nummer');
+  assert.equal(ausspracheText('Okay, Kayak'), 'Okay, Kayak');
+  assert.doesNotMatch(begruessungsText('+49170'), /Conrad/);
+});
+
+const { anrufMeldung } = require('./server.js');
+test('anrufMeldung: Nummer, Zusammenfassung, Rueckruf-Link', () => {
+  const t = anrufMeldung('01748275109', 'Bitte um Rueckruf.', 28);
+  assert.match(t, /01748275109/); assert.match(t, /Bitte um Rueckruf/); assert.match(t, /tel:01748275109/); assert.match(t, /#28/);
+  assert.match(anrufMeldung('', 'x', 1), /unterdrückt/);
+});
+
+test('denglisch: Fremdschrift (chinesisch) wird erkannt, Umlaute/Euro nicht', () => {
+  assert.equal(denglisch('dass Kay您 zurückrufen soll'), '您');
+  assert.equal(denglisch('Schöne Grüße, das kostet 5 € – danke!'), '');
+});

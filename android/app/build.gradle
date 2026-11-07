@@ -7,8 +7,8 @@ android {
         applicationId 'de.gemivo.callagent'
         minSdkVersion 29
         targetSdkVersion 29
-        versionCode 3
-        versionName '1.2-handshake'
+        versionCode 4
+        versionName '1.3-screening'
     }
     buildTypes {
         release {

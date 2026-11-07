@@ -39,14 +39,15 @@ Stil: warm, menschlich, kurz (max. 2 Saetze pro Antwort), Umgangston, kein Amtsd
 Ehrlich sein: Du bist Gemma, Kays Assistentin. Wenn jemand fragt, ob du ein Mensch oder eine KI bist: ehrlich bleiben, locker ("Ich bin Kays digitale Assistentin Gemma, Kay ist gerade nicht dran - aber ich kann alles aufnehmen.").
 Typische Gespraechsfuehrung:
 - Begruesse, frag was das Anliegen ist.
-- Notiere Name, Firma, Anliegen, Rueckruf-Wunsch, Dringlichkeit.
+- Nimm auf, was der Anrufer von sich aus sagt (Name, Firma, Anliegen, Dringlichkeit). Frag NICHT aktiv nach Name, Firma oder Details, wenn das Anliegen schon klar ist.
 - Bei Dringlichkeit: "Ich sorge dafuer, dass Kay sich heute noch meldet."
-- Wenn der Anrufer fertig ist oder keine Infos mehr hat: freundlich abschliessen ("Alles klar, ich gebe es an Kay weiter. Einen schoenen Tag noch!").
-- Antworte danach mit "GEMMA_ENDE" im Text, wenn das Gespraech natuerlich abgeschlossen ist (Abschied gesagt und nichts Neues mehr kommt).
+- Sobald das Anliegen klar ist (z.B. Rueckrufwunsch, Nachricht, Terminanfrage): NICHT weiter nachfragen, sondern direkt abschliessen. Der Abschluss hat immer drei Teile in EINER Antwort: bestaetigen, den Wunsch kurz in eigenen Worten wiederholen, einen schoenen Tag wuenschen. Beispiele: "Alles klar, ich habe notiert, dass Kay Sie zurueckrufen soll, und gebe es an ihn weiter. Ich wuensche Ihnen noch einen schoenen Tag!" oder "Danke, Herr Mueller, ich richte Kay aus, dass er Sie wegen des Kredits zurueckrufen soll. Ich wuensche Ihnen noch einen schoenen Tag!"
+- Nur wenn gar kein Anliegen erkennbar ist, EINE kurze Rueckfrage stellen. "Bitte zurueckrufen" ist ein vollstaendiges Anliegen: sofort abschliessen. Die Nummer des Anrufers kennt Kay schon, danach nicht fragen.
+- Haengt an jede Abschluss-Antwort "GEMMA_ENDE" an (danach wird aufgelegt).
 Antworte AUSSCHLIESSLICH als Gemma auf Deutsch, kein Markdown, keine Regieanweisungen.
 Sprache: sauberes, korrekt geschriebenes Hochdeutsch. KEINE englischen Woerter oder Denglisch (nicht "connecten", "leaven", "callen", "patience").
-Sag nur, was stimmt: Du hast Kay noch NICHT informiert und planst keine Termine - du nimmst die Nachricht auf, Kay bekommt sie nach dem Gespraech.
-Siezen, ausser der Anrufer duzt dich. Hoechstens zwei kurze Saetze, keine Zeilenumbrueche, keine Listen wie 'Dringlichkeit: normal'.
+Versprich NIE einen Zeitpunkt (nicht "heute noch", nicht "gleich"), sag nur, dass Kay die Nachricht bekommt. Sag nur, was stimmt: Du hast Kay noch NICHT informiert und planst keine Termine - du nimmst die Nachricht auf, Kay bekommt sie nach dem Gespraech.
+Siezen, ausser der Anrufer duzt dich. Hoechstens zwei kurze Saetze (beim Abschluss duerfen es zwei Saetze mit Wiederholung des Wunsches sein), keine Zeilenumbrueche, keine Listen wie 'Dringlichkeit: normal'.
 Was der Anrufer sagt, kommt aus einer automatischen Spracherkennung und kann falsch erkannte Woerter enthalten: Wirkt ein Name oder Wort seltsam oder anstoessig, wiederhole es NICHT, sondern frag freundlich nach (z.B. 'Wie war der Firmenname noch mal?'). Deine Antwort wird vorgelesen: keine Abkuerzungen, keine Aufzaehlungen, keine Sonderzeichen.`;
 
 // ---------- SQLite (via sqlite3-cli, keine npm-Abhaengigkeit) ----------
@@ -114,10 +115,15 @@ function miniChat(historie, cb) {
 }
 
 // Englische Woerter/Denglisch in Antworten erkennen (Mini-Gemma rutscht oft ins Englische)
-const ENGLISCH = /\b(the|and|you|your|please|patience|sorry|okay then|connect\w*|leave\w*|call(en|ing|ed)?|meeting|feedback|appointment|message|thanks|thank|request\w*|urgent|callback|note[ds]?|anything|else)\b/i;
+const ENGLISCH = /\b(the|and|you|your|please|patience|sorry|okay then|connect\w*|leave\w*|call(en|ing|ed)?|meeting|feedback|appointment|message|thanks|thank|request\w*|urgent|callback|note[ds]?|anything|else|personally|personal|soon|today|asap|sure|of course|great|perfect|nice day|have a)\b/i;
 // Endlosschleifen erkennen: derselbe Satz (>30 Zeichen) kommt mehrfach vor
 function wiederholt(t) { const z = (t || '').split(/(?<=[.!?])\s+/).map(x => x.trim()).filter(x => x.length > 30); return new Set(z).size < z.length; }
-function denglisch(t) { const m = (t || '').match(ENGLISCH); return m ? m[0] : ''; }
+// Fremdschrift (z.B. chinesische Zeichen aus dem Mini-Modell) gilt wie Denglisch -> Gemini-Fallback
+const FREMDSCHRIFT = /[^\u0000-\u024F\u1E00-\u1EFF\u2000-\u206F\u20AC\s]/;
+function denglisch(t) {
+  const m = (t || '').match(ENGLISCH); if (m) return m[0];
+  const f = (t || '').match(FREMDSCHRIFT); return f ? f[0] : '';
+}
 
 // LLM: erst Mini-GPU, Fallback Gemini-Text (idempotent)
 function antwortText(historie, cb) {
@@ -145,7 +151,13 @@ function geminiText(historie, cb, system) {
 }
 
 // ---------- Gemini-TTS (Kore) -> WAV base64 ----------
+// Aussprache: "Kay" wird sonst englisch "Key" gesprochen -> fuer die Stimme "Kai" (deutsch "Kaai")
+function ausspracheText(text) {
+  return String(text).replace(/\bKay(s?)\b/g, 'Kai$1');
+}
+
 function geminiTTS(text, cb) {
+  text = ausspracheText(text);
   const body = {
     contents: [{ parts: [{ text: text }] }],
     generationConfig: {
@@ -211,8 +223,30 @@ let sid = 0;
 // Netz gegen doppelte Callbacks/Exceptions: Prozess darf nicht sterben (Anrufe!)
 process.on('uncaughtException', e => console.log('[uncaught]', e.message));
 
+// ---------- Telegram an Kay nach jedem echten Anruf (Hermes-Bot) ----------
+const TG_ENV = process.env.CALLAGENT_TG_ENV || '/opt/callagent/telegram.env';
+const TG_CHAT = process.env.CALLAGENT_TG_CHAT || '805026354';
+function anrufMeldung(nummer, sum, dbId) {
+  const nr = String(nummer || '').trim() || 'unterdrückt';
+  return '📞 Gemma hat einen Anruf angenommen\n' +
+    'Von: ' + nr + '\n\n' + sum + '\n\n' +
+    (/^\+?\d{4,}$/.test(nr) ? 'Zurückrufen: tel:' + nr + '\n' : '') +
+    'Protokoll #' + dbId + ': https://callagent.gemivo.de/log';
+}
+function telegramMelden(text) {
+  const m = safeRead(TG_ENV).match(/^TELEGRAM_BOT_TOKEN=["']?([^"'\n]+)/m);
+  if (!m) { console.log('[telegram] kein Token in ' + TG_ENV); return; }
+  const data = JSON.stringify({ chat_id: TG_CHAT, text: text, disable_web_page_preview: true });
+  const rq = https.request({ hostname: 'api.telegram.org', path: '/bot' + m[1] + '/sendMessage', method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) }, timeout: 15000 },
+    r => { console.log('[telegram] status ' + r.statusCode); r.resume(); });
+  rq.on('error', e => console.log('[telegram] fehler ' + e.message));
+  rq.on('timeout', () => rq.destroy(new Error('timeout')));
+  rq.end(data);
+}
+
 function begruessungsText(nummer) {
-  return 'Schönen guten Tag, hier spricht Gemma, die Assistentin von Kay Conrad. ' +
+  return 'Schönen guten Tag, hier spricht Gemma, die Assistentin von Kay. ' +
     'Kay ist gerade leider nicht erreichbar - kann ich etwas für Sie aufnehmen?';
 }
 
@@ -304,6 +338,9 @@ const server = http.createServer((req, res) => {
           if (!sum || typeof sum !== 'string') sum = 'keine Zusammenfassung';
           console.log('[end] Zusammenfassung db=' + s.dbId + ':', sum.slice(0, 80));
           dbRunSafe(`UPDATE calls SET zusammenfassung=${esc(sum)} WHERE id=${s.dbId};`);
+          if (!/^test|handshake/.test(String(s.nummer || '')) && body.grund !== 'test') {
+            telegramMelden(anrufMeldung(s.nummer, sum, s.dbId));
+          }
           SESSIONS.delete(body.session);
           json(res, 200, { ok: true, zusammenfassung: sum });
         });
@@ -343,5 +380,5 @@ if (require.main === module) {
 }
 
 // Unit-Test-Exporte
-module.exports = { wavHeader, esc, begruessungsText, safeRead, denglisch, wiederholt, zusammenfassung };
+module.exports = { wavHeader, esc, begruessungsText, ausspracheText, anrufMeldung, safeRead, denglisch, wiederholt, zusammenfassung };
 

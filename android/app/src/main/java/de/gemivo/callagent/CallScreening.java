@@ -1,18 +1,15 @@
 package de.gemivo.callagent;
 
-import android.content.Intent;
-import android.net.Uri;
-import android.os.Bundle;
 import android.telecom.Call;
 import android.telecom.CallScreeningService;
-import android.telecom.TelecomManager;
 
 /**
- * Screening eingehender Anrufe:
- * - Nummer im Adressbuch -> normal klingeln lassen
- * - Nummer NICHT im Adressbuch -> Anruf annehmen (acceptRingingCall)
- *   und AudioLoop (Gemma) starten. ColorOS verweigert die Dialer-Rolle,
- *   deshalb nehmen wir direkt ueber TelecomManager an.
+ * Screening eingehender Anrufe (App haelt nur ROLE_CALL_SCREENING, nicht Dialer):
+ * - Nummer im Adressbuch (oder KI aus, oder ausgehend) -> normal klingeln lassen
+ * - Nummer NICHT im Adressbuch / unterdrueckt -> Anruf ABLEHNEN.
+ *   Das Netz wertet das als "besetzt" und leitet per Rufumleitung bei besetzt
+ *   (**67*+4945130433056#) auf die FritzBox-Nummer -> Gemma am Server (SIP).
+ * Grund: Android laesst Fremd-Apps im Mobilfunkanruf weder Mikro noch Einspeisen zu.
  */
 public class CallScreening extends CallScreeningService {
 
@@ -22,41 +19,20 @@ public class CallScreening extends CallScreeningService {
     public void onScreenCall(Call.Details details) {
         String nummer = details.getHandle() == null ? ""
                 : details.getHandle().getSchemeSpecificPart();
+        boolean eingehend = details.getCallDirection() == Call.Details.DIRECTION_INCOMING;
+        // Sicherung: ohne Kontakte-Recht ist jeder "unbekannt" -> dann NIE ablehnen
+        boolean kontakteOk = checkSelfPermission(android.Manifest.permission.READ_CONTACTS)
+                == android.content.pm.PackageManager.PERMISSION_GRANTED;
+        boolean anGemma = eingehend && kontakteOk && Konfig.kiAktiv(this)
+                && !ContactHelper.istBekannt(this, nummer);
 
-        boolean bekannt = ContactHelper.istBekannt(this, nummer);
-        boolean kiAn = Konfig.kiAktiv(this);
-
-        // Default-Dialer: InCall nimmt an (sonst doppelte Annahme) -> hier nur durchlassen
-        TelecomManager tmx = getSystemService(TelecomManager.class);
-        boolean binDialer = tmx != null && getPackageName().equals(tmx.getDefaultDialerPackage());
-        if (!binDialer && kiAn && !bekannt) {
-            // KEIN respondToCall (ColorOS crasht darauf bei Drittanbietern).
-            // Telecom behandelt den Anruf nach Timeout als erlaubt - er klingelt kurz.
-            // Wir nehmen parallel selbst an:
-            final CallScreening ich = this;
-            final String nr = nummer;
-            new Thread(() -> {
-                try { Thread.sleep(900); } catch (InterruptedException e) {}
-                try {
-                    TelecomManager tm = getSystemService(TelecomManager.class);
-                    if (tm != null && checkSelfPermission(
-                            android.Manifest.permission.ANSWER_PHONE_CALLS)
-                            == android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                        android.util.Log.i(TAG, "[Screening] nehme an: " + nr);
-                        tm.acceptRingingCall();
-                        AudioLoop.start(ich, nr);
-                    } else {
-                        android.util.Log.w(TAG, "[Screening] keine Annahme-Recht");
-                    }
-                } catch (Exception e) {
-                    android.util.Log.e(TAG, "[Screening] accept: " + e);
-                }
-            }, "ki-accept").start();
-        } else {
-            respondToCall(details, new CallScreeningService.CallResponse.Builder()
-                    .setDisallowCall(false)
-                    .setRejectCall(false)
-                    .build());
-        }
+        android.util.Log.i(TAG, "[Screening] " + (anGemma ? "an Gemma (abgelehnt): " : "durchlassen: ") + nummer
+                + (kontakteOk ? "" : " [kein Kontakte-Recht]"));
+        respondToCall(details, new CallScreeningService.CallResponse.Builder()
+                .setDisallowCall(anGemma)
+                .setRejectCall(anGemma)
+                .setSkipCallLog(false)
+                .setSkipNotification(anGemma)
+                .build());
     }
 }
